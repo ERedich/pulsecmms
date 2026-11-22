@@ -1,0 +1,316 @@
+# Pulse – Guidelines
+
+Gemeinsame Entscheidungsgrundlage für das CMMS Pulse. Änderungen an diesen Regeln nur nach Absprache.
+
+## Rollen
+
+- **Chefentwickler (Agent):** schlägt technische Entscheidungen vor und setzt sie erst nach Absprache um. Keine eigenmächtigen Feature-, Schema- oder Architekturänderungen.
+- **Prozessexperte (Mensch):** liefert fachliche Anforderungen, priorisiert und entscheidet über Prozessfragen.
+- Abgesprochene Entscheidungen werden hier festgehalten.
+
+## Arbeitsregeln
+
+- Keine Änderungen ohne Absprache.
+- Vor jeder Implementierung diese Guidelines zur Kenntnis nehmen und danach arbeiten.
+- Keine Tests im Browser. Die Prüfung im Browser übernimmt der Mensch.
+- Jede Datenbankentscheidung (neue Datenbank, Tabellen, Spalten, Schlüssel, Indizes, Extensions, ORM, Migrationen, Encoding-Änderungen) wird vorab geklärt und hier dokumentiert.
+- Secrets und Passwörter stehen nur in gitignorierten `.env`-Dateien, nie in diesem Dokument und nie in Commits.
+- Agenten starten keine Expo-/Metro-/Emulator-Instanz. Mobile wird per Typecheck geprüft; App-Starts macht der Mensch.
+
+## Produkt
+
+- Pulse ist ein CMMS mit Fokus auf Web- und Mobile-Nutzung.
+- Aktueller Stand: Grundgerüst, Datenkonsistenz-Modell, Tabellen `sites` / `users` / `user_secondary_sites` / `cost_centers` / `employees`, Web-Login mit JWT, User-/Kostenstellen-/Mitarbeiter-CRUD für den eigenen Hauptmandanten, Mandanten-CRUD für alle Sites. Kein Mobile-Login, kein Site-Umschalter, keine weiteren Fachmodule.
+
+## Stack
+
+| Bereich | Technologie |
+| --- | --- |
+| Monorepo | pnpm, TypeScript, Node ≥ 22.13 |
+| Web | Vite, React, TypeScript, `@tabler/icons-react` |
+| Mobile | Expo (React Native), `@tabler/icons-react-native`, `react-native-svg` |
+| Backend | NestJS |
+| Datenbankzugriff (aktuell) | Node-Paket `pg` (kein ORM) |
+| Icons | [Tabler Icons](https://tabler.io/icons) |
+| Design | Tokens und UI-Vorgaben in [DESIGN_pulse.md](DESIGN_pulse.md) |
+
+Noch kein `packages/`-Ordner. Geteilte Typen erst, wenn es etwas zu teilen gibt.
+
+## Design
+
+Farbgebung, Typografie, Spacing und Layout-Regeln stehen in [DESIGN_pulse.md](DESIGN_pulse.md). Standardmäßig keine Cards; klare Struktur statt Karten-Layouts.
+
+Begriffe und das vollständige Muster jeder Fach-App stehen in [App Guidelines](#app-guidelines).
+
+## App Guidelines
+
+Die App **Benutzer** ist die Baseline für Aufbau und Logik. Jede App folgt diesem Muster, sofern für sie nichts anderes vermerkt ist. Eine Abweichung steht ausdrücklich in diesen Guidelines; sie gilt nur für die genannte App.
+
+Interne Namen gelten nur in Gesprächen und in diesem Dokument. Sie lösen keine Umbenennung im Code aus.
+
+- **LP (Listpanel):** Listenansicht.
+- **EP (Edit Panel):** Anlegen und Bearbeiten.
+- **Optionsleiste (Option ribbon):** die Zeile mit App-Titel und Aktionen.
+
+### Shell
+
+- Der Inhalt liegt im `main`. Die Navbar (Suche, „Neuer Auftrag“) und die Sidebar bleiben außerhalb und stehen bei jedem Wechsel.
+- `main` hat kein eigenes horizontales Padding. Der Einzug der App ist `px-3` und fluchtet mit den Zelltexten.
+- Unter `lg` fährt die Sidebar ein und öffnet sich per Toggle als Overlay von links. Escape und ein Klick auf den Schleier schließen sie.
+- Die Sidebar liegt über der Panel-Animation. Slide und Blur dürfen Navbar und Sidebar nicht überdecken.
+- Unten in der Sidebar: Benachrichtigungen, Theme-Schalter, Benutzer, Abmelden. Der Theme-Wechsel animiert nur Farbwerte (300ms). `prefers-reduced-motion` schaltet das aus.
+
+### Optionsleiste
+
+- Höhe `h-16`, volle Breite, Unterkante, `px-3`, vertikal zentriert. Sie sitzt direkt unter der Navbar. Die Tabelle schließt ohne Abstand darunter an.
+- Reihenfolge von links: Titelblock, senkrechter Divider, Aktionen. Ein Hinweis oder Fehler steht daneben, erneut durch einen Divider getrennt, einzeilig gekürzt, der volle Text im `title`.
+- Der Titelblock ist in LP und EP gleich breit (`w-52`), damit Divider und Aktionen beim Wechsel nicht springen. Titel: `text-lg leading-6 font-semibold`. Überlanger EP-Titel wird gekürzt.
+- LP-Titel ist der Name der Entität („Benutzer“). Daneben steht die Anzahl der **sichtbaren** Datensätze in eckigen Klammern, z. B. `[12]`, baseline-bündig, `text-sm font-semibold`, gedämpfte Farbe. Während des Ladens entfällt der Count.
+- EP-Titel ist „{Entität} anlegen“ oder „{Entität} bearbeiten“. Kein Count, kein Untertitel, kein Zurück-Button.
+
+### Aktionen
+
+Eigenständige Buttons, keine verbundene Button-Group und keine Icon-only-Aktionen. Höhe `h-9`, `text-sm font-semibold`, Icon 18px, `rounded`, Abstand `gap-1.5`.
+
+- **Primary** (Neu, Speichern): Fläche und Rahmen in Primary, Hover `primary-container`. Nicht die Grün-/Secondary-Farbe.
+- **Neutral** (Bearbeiten, Abbrechen): Outline auf `surface`, Hover `surface-container-low`.
+- **Destruktiv** (Löschen): Rahmen `error/40`, Text `error`, Hover `error-container/40`.
+- Deaktiviert: `opacity-50`, kein Pointer. Jeder aktive Button zeigt `cursor: pointer`. Das steht einmal global in `index.css`, nicht an jedem Button.
+
+LP:
+
+- **Neu** öffnet das EP zum Anlegen (Forward).
+- **Bearbeiten** ist nur bei genau einer Auswahl aktiv und öffnet diese. Die Auswahlanzahl erscheint als eckiges Badge mit abgerundeten Ecken. Die Breite des Badges animiert über 200ms. Das Badge ist sichtbar, sobald mindestens eine Zeile gewählt ist.
+- **Löschen** ist ab einer Auswahl aktiv. Vorher eine Bestätigung, Singular oder Plural je nach Anzahl. Danach wird die Liste neu geladen.
+
+EP:
+
+- **Speichern** ist Primary. Label „Speichern“, während des Sendens „Speichern…“. Erfolg kehrt ins LP zurück (`replace`, Back).
+- **Abbrechen** kehrt ins LP zurück (Back), ohne zu speichern.
+
+Schmale Leiste: Die Leiste ist ein `@container`. Unter `36rem` werden die Buttons zum Sandwich-Menü (`IconMenu2`), in derselben Zeile und rechtsbündig. Das Menü klappt rechts aus; die Einträge sind volle Breite und linksbündig. Es schließt bei Außenklick, Escape und nach einer Aktion. Der Hinweistext bleibt in der Zeile, das Sandwich bleibt rechts.
+
+### LP
+
+- Tabelle über die volle Breite, horizontal scrollbar ab `min-w-[640px]`. Keine Karten, keine Checkbox-Spalte, keine Aktions-Spalte, keine Edit- oder Löschen-Icons in der Zeile.
+- Spaltenüberschriften: Uppercase, `text-xs`, gedämpft. Jede Spalte ist sortierbar. Klick auf die aktive Spalte kehrt die Richtung um; eine neue Spalte startet aufsteigend. Sortierung mit Locale `de`. Aktiv: Chevron und dunklere Schrift. Inaktiv: gedimmtes Selector-Icon. `aria-sort` ist gesetzt.
+- Darunter eine permanente Filterzeile, eine Suche pro Spalte, Platzhalter „Filtern…“. Treffer ist ein Contains, ohne Beachtung der Großschreibung (`de`). Die Spaltenfilter sind UND-verknüpft und gelten zusätzlich zur globalen Suche.
+- Auswahl ohne Checkbox:
+  - Klick wählt genau diese Zeile. Ein erneuter Klick auf die einzige Auswahl hebt sie auf.
+  - Strg oder Cmd schaltet eine Zeile dazu oder weg.
+  - Umschalt wählt den Bereich ab dem Anker.
+  - Was Filter oder Suche ausblendet, fällt aus der Auswahl.
+  - Gewählt: `bg-surface-container`. Sonst Hover `bg-surface-container-low`.
+- Doppelklick öffnet das EP dieser Zeile (Forward). Auf Mobile ist Doppel-Tap dieselbe Aktion ([Mobile](#mobile)).
+- Leere Anzeige ist ein Geviertstrich „—“.
+- Zustände in der Tabelle: „Laden…“, „Noch keine {Entität} vorhanden.“, „Keine Treffer für die aktuelle Suche.“, „Keine Treffer für die aktuellen Filter.“
+
+### EP
+
+- Volle Breite des Content-Bereichs, keine schmale Formularspalte. Abstand zur Optionsleiste `mt-8`, seitlich `px-3`.
+- Der Inhalt ist in logische Gruppen geteilt. Gruppentitel: Icon in Primary, Uppercase, `text-sm font-semibold tracking-wide`, Unterkante. Abstand zwischen Gruppen `gap-8`.
+- Feldraster: eine Spalte, ab `md` zwei, ab `xl` drei. Abstand `gap-5`.
+- Textfelder nutzen Floating Labels. Leer und unfokussiert steht das Label im Feld. Bei Fokus oder Wert gleitet es an den oberen Rand (160ms, auf 75% skaliert). `prefers-reduced-motion` ohne diese Transition.
+- Pflicht kommt aus dem Datenbankschema, nicht aus einer festen Frontend-Liste. Ein Pflichtfeld trägt einen roten Stern und den Rahmen `border-error/60`; der Fokusring ist ebenfalls `error`.
+- Ein Hinweis sitzt unter dem Feld (`text-xs`), nicht im Label.
+- Nur-Lesen-Werte (z. B. der Mandant) sind Text auf `surface-container-low`, kein Eingabefeld.
+- Mehrfachzuordnungen sind eine Checkbox-Liste, Anzeige `{key} — {name}`.
+- Mandantenreferenzen (`fk_site` des Datensatzes) stehen im EP in einer eigenen Gruppe **Mandant** (`IconBuilding`). Das Feldlabel lautet „Mandant“. Ausnahme: App **Benutzer** — dort heißt die Gruppe **Mandanten**, und das Label für die feste Site des Users lautet „Hauptmandant“ (Nebenmandanten bleiben Checkboxen).
+
+### Animation
+
+Wechsel nur zwischen LP und EP, über die View Transitions API. Der Name `panel` liegt auf dem App-Inhalt, nicht auf Sidebar oder Navbar.
+
+- Gleichzeitig Slide, Fade und Blur. Dauer 160ms, `ease-out`. Weg `3.5rem`, Blur `12px`, Opacity auf 0.
+- Forward (LP → EP, auch Neu, Bearbeiten, Doppelklick): Liste nach links hinaus, Editor von rechts herein.
+- Back (Speichern, Abbrechen): gespiegelt.
+- `prefers-reduced-motion`: Dauer 0.
+
+### Globale Suche
+
+Dieselbe Leiste in jeder App, links in der Navbar.
+
+- LP: filtert die Datensätze. Ein Treffer ist ein Datensatz, bei dem irgendein sichtbares Feld die Eingabe enthält. Spaltenfilter gelten zusätzlich. Platzhalter „Daten suchen…“.
+- EP: hebt Felder hervor, deren Bezeichnung oder sichtbarer Wert die Eingabe enthält (Primary-Fläche und Ring). Übrige Felder sinken auf Opacity 40. Der erste Treffer rückt ins Blickfeld. Platzhalter „Felder suchen…“.
+- Ohne LP/EP (Dashboard, Platzhalter) ist die Suche inaktiv. Platzhalter „Suche in einer App…“.
+- Escape oder das Löschen-Icon leert die Eingabe. Der Wechsel der Ansicht leert sie ebenfalls.
+- Vergleich ohne Großschreibung, Locale `de`.
+
+### Referenz: Benutzer
+
+Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
+
+- LP-Spalten: Schlüssel, Login, Name, Nebenmandanten, Mitarbeiter. Standardsortierung Schlüssel aufsteigend. Name ist „Vorname Nachname“ und sortiert nach Nachname, dann Vorname. Nebenmandanten sind die `key`-Liste, sonst „—“. Mitarbeiter ist der `key` der 1:1-Zuordnung, sonst „—“.
+- EP-Gruppen: **Basis Informationen** (`IconId`), **Mandanten** (`IconBuilding`), **Referenzen** (`IconLink`).
+- Schema-Pflicht: Schlüssel, Login, E-Mail. Passwort nur beim Anlegen; im Bearbeiten leer lassen heißt beibehalten, mit Umschalter für die Sichtbarkeit. Vorname und Nachname sind optional.
+- Hauptmandant ist der des Aufrufers und nicht wählbar. Nebenmandanten sind die übrigen Sites als Checkboxen.
+- Referenzen: optional genau ein Mitarbeiter des eigenen Hauptmandanten (`employeeKey`). Anzeige `{key} — {Vorname Nachname}`; leere Option „—“ löst die Zuordnung. Bereits einem anderen Benutzer zugeordnete Mitarbeiter sind deaktiviert; der aktuell gewählte bleibt wählbar. 1:1 (`UNIQUE` auf `users.fk_employee`).
+- Der eigene Account darf nicht gelöscht werden. Speichert man den eigenen Account, wird die angezeigte Session mitgezogen.
+- Sichtbar ist nur der eigene Hauptmandant. `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
+
+### Referenz: Mandanten
+
+Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
+
+- LP-Spalten: Schlüssel, Name, Farbcode. Standardsortierung Schlüssel aufsteigend. Farbcode zeigt Swatch und Hex-Text.
+- EP-Gruppen: **Basis Informationen** (`IconBuilding`: Schlüssel, Name), **Sonstiges** (`IconPalette`: Farbcode). Schema-Pflicht: Schlüssel, Name und Farbcode (`#RRGGBB`). Color-Picker und Hex-Feld sind synchron; Default beim Anlegen `#2563EB`.
+- Sichtbar und pflegbar sind alle Sites (`sites` ohne `fk_site`). Keine Rollenprüfung.
+- `colorCode` steckt auch in `SiteRef` (Login, Session, Benutzer-Antworten); Benutzer-LP/EP zeigen die Farbe noch nicht.
+- Löschen ist verboten, solange die Site als `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site` oder `employees.fk_site` referenziert wird (`409`).
+- Ändern eines referenzierten Mandanten bleibt erlaubt (FKs zeigen auf `uid`). Bei Schlüsseländerung werden USS-Zuordnungsschlüssel mitgezogen, bei denen diese Site der Nebenmandant ist.
+- Speichert man den Haupt- oder einen Nebenmandanten der laufenden Session, wird die angezeigte Session mitgezogen.
+
+### Referenz: Kostenstellen
+
+Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
+
+- LP-Spalten: Schlüssel, Name. Standardsortierung Schlüssel aufsteigend.
+- EP-Gruppen: **Basis Informationen** (`IconCash`: Schlüssel, Name), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session). Schema-Pflicht: Schlüssel und Name. Mandant nicht wählbar und keine LP-Spalte.
+- Sichtbar und pflegbar sind nur Kostenstellen mit `cost_centers.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`). Neue Datensätze erhalten immer dieses `fk_site`.
+- `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
+- Löschen ist erlaubt, solange nichts darauf zeigt. Mandanten-Löschen bleibt verboten, solange `cost_centers.fk_site` darauf zeigt (`409`).
+
+### Referenz: Mitarbeiter
+
+Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
+
+- LP-Spalten: Schlüssel, Name. Standardsortierung Schlüssel aufsteigend. Name ist „Vorname Nachname“ und sortiert nach Nachname, dann Vorname.
+- EP-Gruppen: **Basis Informationen** (`IconIdBadge2`: Schlüssel, Vorname, Nachname), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session). Schema-Pflicht: Schlüssel, Vorname und Nachname. Mandant nicht wählbar und keine LP-Spalte.
+- Sichtbar und pflegbar sind nur Mitarbeiter mit `employees.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`). Neue Datensätze erhalten immer dieses `fk_site`.
+- `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
+- Löschen ist verboten, solange `users.fk_employee` darauf zeigt (`409`). Mandanten-Löschen bleibt verboten, solange `employees.fk_site` darauf zeigt (`409`).
+
+## Mobile
+
+Dieselbe Fachlogik wie Web. Apps, LP, EP und Aktionen folgen den [App Guidelines](#app-guidelines). Eine Abweichung steht ausdrücklich in diesem Abschnitt.
+
+- **Doppel-Tap** auf eine Zeile ist identisch mit **Doppelklick** auf Web: das EP dieser Zeile öffnet sich (Forward).
+
+## Repository-Struktur
+
+```
+pulse/
+  apps/
+    api/      NestJS API (+ db/migrations)
+    web/      Vite React Web (Login, Benutzer, Mandanten, Kostenstellen, Mitarbeiter)
+    mobile/   Expo React Native
+  DESIGN_pulse.md
+  guidelines.md
+  package.json
+  pnpm-workspace.yaml
+```
+
+## Datenbank
+
+- **Instanz:** self-hosted Postgres auf dem NAS `192.168.178.106`, Port `41631` (gemeinsam mit anderen Projekten, jeweils eigene DB).
+- **Entwicklungsdatenbank:** `pulse_dev`
+- **Anlage:** `CREATE DATABASE pulse_dev` mit Server-Defaults, nur wenn die DB noch nicht existiert. Kein `DROP`.
+- **Encoding:** nach Anlage prüfen; muss `UTF8` sein. Abweichung → Abbruch und Rückfrage, kein stilles Umbauen.
+- **Inhalt (aktuell):** Extension `pgcrypto`; Tabellen `sites`, `users`, `user_secondary_sites`, `cost_centers`, `employees`; Tracking `schema_migrations`.
+- **App-Zugriff:** `DATABASE_URL` zeigt auf `/pulse_dev`. Wartung/Anlage über `POSTGRES_ADMIN_URL` auf die Datenbank `postgres`.
+- **ORM:** keines. SQL-Migrationen unter `apps/api/db/migrations/`, Zugriff über `pg`.
+- **Migrationen:** `pnpm --filter @pulse/api db:migrate` · Seed: `pnpm --filter @pulse/api db:seed`
+
+## Datenkonsistenz
+
+- Tabellen- und Spaltennamen sind **englisch**.
+- Jeder Datensatz hat:
+  - `uid` – UUID, Primärschlüssel, für den User standardmäßig **nicht** sichtbar
+  - `key` – user-sichtbare Pflichtangabe (Anzeige und Referenz in der UI)
+  - `fk_site` – Zuordnung zum Mandanten (**Site**), außer auf der Wurzel-Tabelle `sites`
+- Wird referenziert, zeigt die UI den `key` des Zieldatensatzes, nicht die `uid`. Intern speichert die DB weiterhin die `uid`.
+- **Site / Mandant**
+  - `sites` ist die Mandanten-Wurzel (ohne `fk_site`).
+  - **Hauptmandant:** jeder User hat genau eine Site über `users.fk_site` (1:1). Zugang zu diesem Mandanten; neue Datensätze des Users erhalten standardmäßig dieses `fk_site`.
+  - **Nebenmandant:** zusätzliche Sites über `user_secondary_sites` (1:n). Zugang zu diesen Mandanten, ohne dass sie der Default für neue Records sind.
+- Abgesprochenes Schema (Kurzform):
+  - `sites(uid, key, name, color_code, created_at, updated_at)` mit Check `color_code ~ '^#[0-9A-Fa-f]{6}$'`
+  - `users(uid, key, fk_site, fk_employee, login_name, first_name, last_name, password_hash, …)` mit `UNIQUE(fk_site, key)`, `UNIQUE(fk_site, login_name)` und partieller Unique auf `fk_employee`
+  - `user_secondary_sites(uid, key, fk_site, fk_user, fk_secondary_site, …)` mit `UNIQUE(fk_user, fk_secondary_site)`
+  - `cost_centers(uid, key, fk_site, name, created_at, updated_at)` mit `UNIQUE(fk_site, key)`
+  - `employees(uid, key, fk_site, first_name, last_name, created_at, updated_at)` mit `UNIQUE(fk_site, key)`
+- **User-CRUD (abgesprochen):**
+  - Sichtbar und pflegbar sind nur Benutzer mit `users.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
+  - Hauptmandant neuer/geänderter Benutzer ist immer der des Aufrufers (nicht wählbar).
+  - Nebenmandanten über `user_secondary_sites`; Zuordnungs-`key` wird automatisch als `USS-{userKey}-{siteKey}` gesetzt und bei Schlüsseländerung mitgezogen.
+  - Optional genau ein Mitarbeiter über `users.fk_employee` (`employeeKey` in Create/Update; `null` löst die Zuordnung). Mitarbeiter muss zum eigenen Hauptmandanten gehören; bereits vergebene Zuordnung → `409`.
+  - `login_name` ist app-seitig global eindeutig (Login bricht bei Mehrfachtreffern ab); DB-Constraint bleibt `UNIQUE(fk_site, login_name)`.
+  - Eigenen Account darf man nicht löschen.
+- **Site-CRUD (abgesprochen):**
+  - Sichtbar und pflegbar sind alle Mandanten (`sites`).
+  - Felder: `key`, `name`, `color_code` (alle Pflicht; `key` global eindeutig; `color_code` Hex `#RRGGBB`, speichern als Uppercase).
+  - `SiteRef` in Auth/User-Antworten enthält `colorCode`.
+  - Löschen nur, wenn keine Referenz in `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site` oder `employees.fk_site` existiert; sonst `409`.
+  - Bei Schlüsseländerung: USS-`key` der Zuordnungen mit `fk_secondary_site` = dieser Site werden auf `USS-{userKey}-{siteKey}` aktualisiert.
+- **Kostenstellen-CRUD (abgesprochen):**
+  - Sichtbar und pflegbar sind nur Kostenstellen mit `cost_centers.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
+  - Felder: `key`, `name` (beide Pflicht; `key` eindeutig je Mandant).
+  - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
+- **Mitarbeiter-CRUD (abgesprochen):**
+  - Sichtbar und pflegbar sind nur Mitarbeiter mit `employees.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
+  - Felder: `key`, `first_name`, `last_name` (alle Pflicht; `key` eindeutig je Mandant).
+  - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
+  - Löschen nur, wenn kein `users.fk_employee` darauf zeigt; sonst `409`.
+
+## Ports
+
+| Dienst | Port |
+| --- | --- |
+| API | `3010` |
+| Web (Vite) | `5173` |
+| Mobile (Expo Metro) | `8081` |
+
+Belegt durch andere Projekte: Vereinsmanager API `3001`, Redex API `3002`.
+
+## Secrets und Umgebung
+
+- Root-`.env` und `apps/api/.env` sind gitignoriert.
+- `.env.example` enthält Platzhalter ohne echte Passwörter.
+- Mobile: `EXPO_PUBLIC_API_URL` zeigt im LAN auf die IP dieses Entwicklungs-PCs und Port `3010`.
+- Web: Vite-Dev-Proxy leitet `/api` nach `http://127.0.0.1:3010` weiter.
+
+## API (aktuell)
+
+- Globaler Prefix: `/api`
+- `GET /api/health` → DB-Check (`up` / `down`)
+- `POST /api/auth/login` → `{ loginName, password, rememberMe? }` → JWT + User (ohne `uid` im sichtbaren User-Objekt; Sites als `key`/`name`)
+- `GET /api/auth/me` → aktueller User (Bearer JWT)
+- Passwort-Hashes: argon2. JWT-TTL: 8h, bei Remember-Me 30d. Secret: `JWT_SECRET` in `.env`.
+- User-CRUD (Bearer JWT, Antworten ohne `uid` / Passwort-Hash):
+  - `GET /api/users` — Liste des eigenen Hauptmandanten
+  - `GET /api/users/site-options` — wählbare Nebenmandanten
+  - `GET /api/users/employee-options` — wählbare Mitarbeiter (inkl. `assignedUserKey`)
+  - `POST /api/users` — anlegen (`key`, `loginName`, `firstName`, `lastName`, `password`, `secondarySiteKeys`, `employeeKey`)
+  - `GET /api/users/:key` — ein Benutzer
+  - `PATCH /api/users/:key` — bearbeiten (`password` optional; leer/fehlend = unverändert; `employeeKey` null = Zuordnung lösen)
+  - `DELETE /api/users/:key` — löschen (eigener Account verboten)
+- Site-CRUD (Bearer JWT, Antworten ohne `uid`):
+  - `GET /api/sites` — alle Mandanten
+  - `POST /api/sites` — anlegen (`key`, `name`, `colorCode`)
+  - `GET /api/sites/:key` — ein Mandant
+  - `PATCH /api/sites/:key` — bearbeiten
+  - `DELETE /api/sites/:key` — löschen (bei Referenz `409`)
+- Kostenstellen-CRUD (Bearer JWT, Antworten ohne `uid`):
+  - `GET /api/cost-centers` — Liste des eigenen Hauptmandanten
+  - `POST /api/cost-centers` — anlegen (`key`, `name`)
+  - `GET /api/cost-centers/:key` — eine Kostenstelle
+  - `PATCH /api/cost-centers/:key` — bearbeiten
+  - `DELETE /api/cost-centers/:key` — löschen
+- Mitarbeiter-CRUD (Bearer JWT, Antworten ohne `uid`):
+  - `GET /api/employees` — Liste des eigenen Hauptmandanten
+  - `POST /api/employees` — anlegen (`key`, `firstName`, `lastName`)
+  - `GET /api/employees/:key` — ein Mitarbeiter
+  - `PATCH /api/employees/:key` — bearbeiten
+  - `DELETE /api/employees/:key` — löschen (bei Referenz `409`)
+
+## Web (aktuell)
+
+- Login, Dashboard-Platzhalter, App „Benutzer“ unter `/users`, App „Mandanten“ unter `/sites`, App „Kostenstellen“ unter `/cost-centers` und App „Mitarbeiter“ unter `/employees`: jeweils **LP** (Liste) und **EP** (Anlegen/Bearbeiten per Doppelklick). Globale Suche filtert die Liste und hebt im Editor passende Felder hervor.
+
+## Nächste Schritte (nur nach Absprache)
+
+- Mobile Login
+- Passwort-vergessen
+- Site-Umschalter
+- CMMS-Domänenmodule
+- Shared-Packages bei Bedarf

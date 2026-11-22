@@ -1,0 +1,19 @@
+---
+description: Enabled buttons always use the pointer cursor
+globs: apps/web/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# Button cursor
+
+Enabled buttons always use `cursor: pointer`. Disabled or `aria-disabled` buttons keep the default cursor.
+
+This is set once in `apps/web/src/index.css` (`@layer base`). Do not add `cursor-pointer` on individual `<button>` elements.
+
+```css
+button:not(:disabled):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+```
+
+When a control is not a `<button>` but acts as one (`role="button"`, submit inputs), it follows the same rule.

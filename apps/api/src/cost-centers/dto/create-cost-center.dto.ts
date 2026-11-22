@@ -1,0 +1,11 @@
+import { IsString, MinLength } from "class-validator";
+
+export class CreateCostCenterDto {
+  @IsString()
+  @MinLength(1)
+  key!: string;
+
+  @IsString()
+  @MinLength(1)
+  name!: string;
+}

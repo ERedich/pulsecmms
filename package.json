@@ -1,0 +1,28 @@
+{
+  "name": "pulse",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @pulse/api --filter @pulse/web run dev",
+    "dev:api": "pnpm --filter @pulse/api dev",
+    "dev:web": "pnpm --filter @pulse/web dev",
+    "dev:mobile": "pnpm --filter @pulse/mobile dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "db:create": "pnpm --filter @pulse/api db:create",
+    "db:migrate": "pnpm --filter @pulse/api db:migrate",
+    "db:seed": "pnpm --filter @pulse/api db:seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "19.2.3",
+      "react-dom": "19.2.3"
+    }
+  }
+}
