@@ -60,7 +60,7 @@ export function LoginPage() {
   const backgroundIndex = useLoginBackgroundIndex();
 
   if (getAccessToken()) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/sites" replace />;
   }
 
   async function onSubmit(event: FormEvent) {
@@ -74,7 +74,7 @@ export function LoginPage() {
         rememberMe,
       });
       saveSession(result, rememberMe);
-      navigate("/", { replace: true });
+      navigate("/sites", { replace: true });
     } catch {
       setError("Anmeldung fehlgeschlagen. Bitte Zugangsdaten prüfen.");
     } finally {

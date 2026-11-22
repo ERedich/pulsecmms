@@ -202,7 +202,15 @@ export class SitesService {
       `SELECT uid FROM employees WHERE fk_site = $1 LIMIT 1`,
       [siteUid],
     );
-    return (employees.rowCount ?? 0) > 0;
+    if ((employees.rowCount ?? 0) > 0) {
+      return true;
+    }
+
+    const assets = await this.db.query<{ uid: string }>(
+      `SELECT uid FROM assets WHERE fk_site = $1 LIMIT 1`,
+      [siteUid],
+    );
+    return (assets.rowCount ?? 0) > 0;
   }
 
   private async syncSecondaryLinkKeys(

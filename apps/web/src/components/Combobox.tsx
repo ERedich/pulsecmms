@@ -5,17 +5,21 @@ import {
   useMemo,
   useRef,
   useState,
+  type ElementType,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { tokenTone } from "../lib/tokenTone";
 
 export type ComboboxOption = {
   value: string;
   label: string;
   disabled?: boolean;
   keywords?: readonly string[];
-  /** Hex color for MultiSelect tokens. Combobox ignores this. */
+  /** Hex color for option swatch / MultiSelect tokens. */
   color?: string;
+  /** Optional leading icon in the option list. */
+  icon?: ElementType;
 };
 
 type ComboboxProps = {
@@ -368,6 +372,8 @@ export function Combobox(props: ComboboxProps) {
             visibleOptions.map((option, index) => {
               const selectedOption = option.value === props.value;
               const active = index === activeOptionIndex;
+              const tone = tokenTone(option.color);
+              const OptionIcon = option.icon;
               return (
                 <li
                   key={option.value}
@@ -401,6 +407,24 @@ export function Combobox(props: ComboboxProps) {
                         : "shrink-0 opacity-0"
                     }
                   />
+                  {tone || OptionIcon ? (
+                    <span
+                      className={[
+                        "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded",
+                        tone ? "" : "bg-surface-container-high text-on-surface",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={tone ?? undefined}
+                      aria-hidden
+                    >
+                      {OptionIcon ? (
+                        <OptionIcon size={14} stroke={1.75} />
+                      ) : (
+                        <span className="h-2.5 w-2.5 rounded-full bg-current opacity-40" />
+                      )}
+                    </span>
+                  ) : null}
                   <span className="min-w-0">{option.label}</span>
                 </li>
               );

@@ -113,6 +113,16 @@ export class CostCentersService {
       throw new NotFoundException("Kostenstelle nicht gefunden");
     }
 
+    const referenced = await this.db.query<{ uid: string }>(
+      `SELECT uid FROM assets WHERE fk_cost_center = $1 LIMIT 1`,
+      [costCenter.uid],
+    );
+    if ((referenced.rowCount ?? 0) > 0) {
+      throw new ConflictException(
+        "Kostenstelle wird noch referenziert und kann nicht gelöscht werden.",
+      );
+    }
+
     await this.db.query(`DELETE FROM cost_centers WHERE uid = $1`, [
       costCenter.uid,
     ]);

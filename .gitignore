@@ -17,3 +17,4 @@ Thumbs.db
 .idea
 apps/mobile/.expo
 apps/web/dist
+apps/api/uploads

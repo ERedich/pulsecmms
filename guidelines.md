@@ -20,7 +20,7 @@ Gemeinsame Entscheidungsgrundlage für das CMMS Pulse. Änderungen an diesen Reg
 ## Produkt
 
 - Pulse ist ein CMMS mit Fokus auf Web- und Mobile-Nutzung.
-- Aktueller Stand: Grundgerüst, Datenkonsistenz-Modell, Tabellen `sites` / `users` / `user_secondary_sites` / `cost_centers` / `employees`, Web-Login mit JWT, User-/Kostenstellen-/Mitarbeiter-CRUD für den eigenen Hauptmandanten, Mandanten-CRUD für alle Sites. Kein Mobile-Login, kein Site-Umschalter, keine weiteren Fachmodule.
+- Aktueller Stand: Grundgerüst, Datenkonsistenz-Modell, Tabellen `sites` / `users` / `user_secondary_sites` / `cost_centers` / `employees` / `assets` (optionales Thumbnail), Web-Login mit JWT, User-/Kostenstellen-/Mitarbeiter-/Asset-CRUD für den eigenen Hauptmandanten, Mandanten-CRUD für alle Sites. Kein Mobile-Login, kein Site-Umschalter, keine weiteren Fachmodule.
 
 ## Stack
 
@@ -132,7 +132,7 @@ Dieselbe Leiste in jeder App, links in der Navbar.
 
 - LP: filtert die Datensätze. Ein Treffer ist ein Datensatz, bei dem irgendein sichtbares Feld die Eingabe enthält. Spaltenfilter gelten zusätzlich. Platzhalter „Daten suchen…“.
 - EP: hebt Felder hervor, deren Bezeichnung oder sichtbarer Wert die Eingabe enthält (Primary-Fläche und Ring). Übrige Felder sinken auf Opacity 40. Der erste Treffer rückt ins Blickfeld. Platzhalter „Felder suchen…“.
-- Ohne LP/EP (Dashboard, Platzhalter) ist die Suche inaktiv. Platzhalter „Suche in einer App…“.
+- Ohne registrierte App ist die Suche inaktiv. Platzhalter „Suche in einer App…“.
 - Escape oder das Löschen-Icon leert die Eingabe. Der Wechsel der Ansicht leert sie ebenfalls.
 - Vergleich ohne Großschreibung, Locale `de`.
 
@@ -156,7 +156,7 @@ Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
 - EP-Gruppen: **Basis Informationen** (`IconBuilding`: Schlüssel, Name), **Sonstiges** (`IconPalette`: Farbcode). Schema-Pflicht: Schlüssel, Name und Farbcode (`#RRGGBB`). Color-Picker und Hex-Feld sind synchron; Default beim Anlegen `#2563EB`.
 - Sichtbar und pflegbar sind alle Sites (`sites` ohne `fk_site`). Keine Rollenprüfung.
 - `colorCode` steckt auch in `SiteRef` (Login, Session, Benutzer-Antworten); Benutzer-LP/EP zeigen die Farbe noch nicht.
-- Löschen ist verboten, solange die Site als `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site` oder `employees.fk_site` referenziert wird (`409`).
+- Löschen ist verboten, solange die Site als `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site`, `employees.fk_site` oder `assets.fk_site` referenziert wird (`409`).
 - Ändern eines referenzierten Mandanten bleibt erlaubt (FKs zeigen auf `uid`). Bei Schlüsseländerung werden USS-Zuordnungsschlüssel mitgezogen, bei denen diese Site der Nebenmandant ist.
 - Speichert man den Haupt- oder einen Nebenmandanten der laufenden Session, wird die angezeigte Session mitgezogen.
 
@@ -168,7 +168,23 @@ Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
 - EP-Gruppen: **Basis Informationen** (`IconCash`: Schlüssel, Name), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session). Schema-Pflicht: Schlüssel und Name. Mandant nicht wählbar und keine LP-Spalte.
 - Sichtbar und pflegbar sind nur Kostenstellen mit `cost_centers.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`). Neue Datensätze erhalten immer dieses `fk_site`.
 - `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
-- Löschen ist erlaubt, solange nichts darauf zeigt. Mandanten-Löschen bleibt verboten, solange `cost_centers.fk_site` darauf zeigt (`409`).
+- Löschen ist verboten, solange `assets.fk_cost_center` darauf zeigt (`409`). Mandanten-Löschen bleibt verboten, solange `cost_centers.fk_site` darauf zeigt (`409`).
+
+### Referenz: Assets
+
+Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
+
+- LP-Spalten: Bild, Schlüssel, Typ, Bezug, Kostenstelle, Seriennummer, Hersteller. Standardsortierung Schlüssel aufsteigend. Bild ist ein 40×40-Vorschaubild oder „—“. Typ ist ein Pastell-Chip mit Icon und deutschem Label. Bezug, Seriennummer und Hersteller sind leer als „—“.
+- EP-Gruppen: **Basis Informationen** (`IconBox`: links Thumbnail mit Vorschau/Bild wählen/Entfernen, rechts Schlüssel, Typ, Seriennummer, Hersteller), **Referenzen** (`IconLink`: Bezug, Kostenstelle), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session).
+- Schema-Pflicht: Schlüssel, Typ, Kostenstelle. Bezug ist Pflicht außer beim Typ Standort. Seriennummer, Hersteller und Thumbnail sind optional. Mandant nicht wählbar und keine LP-Spalte.
+- Thumbnail: optionaler Datei-Upload auf dem API-Server (`apps/api/uploads/assets/`, gitignoriert). Erlaubt JPEG/PNG/WebP, max. 2 MB. DB-Spalte `thumbnail_path` speichert nur den Dateinamen; API liefert `thumbnailUrl`. Upload/Löschen über eigene Endpunkte; beim Anlegen wird die Datei nach dem Create hochgeladen. Beim Löschen des Assets wird die Datei mit entfernt.
+- Typ und Bezug sind Comboboxen (selItem). Typ-Optionen zeigen Farbe und Icon; Bezug-Optionen mit Farbe/Icon des Elterntyps. Standort: Bezug optional (Wurzel oder unter anderem Standort/gleicher Stufe). Alle anderen Typen: Bezug Pflicht.
+- Typ-Codes (DB englisch, UI deutsch) mit fester Pastellfarbe und Icon: `location` Standort `#BFDBFE` `IconMapPin`, `building` Gebäude `#A5F3FC` `IconBuilding`, `area` Fläche `#BBF7D0` `IconBorderCorners`, `assembly` Baugruppe `#FED7AA` `IconComponents`, `maintenance_object` Instandhaltungsobjekt `#FBCFE8` `IconTool`. Farbe/Icon nur UI, nicht in der DB.
+- Hierarchie (Rang von oben nach unten): Standort → Gebäude → Fläche → Baugruppe → Instandhaltungsobjekt. Ein Eltern-Asset darf nur Kinder gleicher oder tieferer Stufe beherbergen (nicht höher). Beispiel: Instandhaltungsobjekt direkt unter Standort ist erlaubt; Standort unter Baugruppe nicht. Standort darf unter Standort liegen. Bezug und Kostenstelle müssen zum eigenen Hauptmandanten gehören. Zyklen über den Bezug sind verboten.
+- Typwechsel nur, solange keine Kinder existieren (`409`).
+- Sichtbar und pflegbar sind nur Assets mit `assets.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`). Neue Datensätze erhalten immer dieses `fk_site`.
+- `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
+- Löschen ist verboten, solange Kinder (`fk_parent`) darauf zeigen (`409`). Mandanten-Löschen bleibt verboten, solange `assets.fk_site` darauf zeigt (`409`). Kostenstellen-Löschen bleibt verboten, solange `assets.fk_cost_center` darauf zeigt (`409`).
 
 ### Referenz: Mitarbeiter
 
@@ -192,7 +208,7 @@ Dieselbe Fachlogik wie Web. Apps, LP, EP und Aktionen folgen den [App Guidelines
 pulse/
   apps/
     api/      NestJS API (+ db/migrations)
-    web/      Vite React Web (Login, Benutzer, Mandanten, Kostenstellen, Mitarbeiter)
+    web/      Vite React Web (Login, Benutzer, Mandanten, Kostenstellen, Assets, Mitarbeiter)
     mobile/   Expo React Native
   DESIGN_pulse.md
   guidelines.md
@@ -206,7 +222,7 @@ pulse/
 - **Entwicklungsdatenbank:** `pulse_dev`
 - **Anlage:** `CREATE DATABASE pulse_dev` mit Server-Defaults, nur wenn die DB noch nicht existiert. Kein `DROP`.
 - **Encoding:** nach Anlage prüfen; muss `UTF8` sein. Abweichung → Abbruch und Rückfrage, kein stilles Umbauen.
-- **Inhalt (aktuell):** Extension `pgcrypto`; Tabellen `sites`, `users`, `user_secondary_sites`, `cost_centers`, `employees`; Tracking `schema_migrations`.
+- **Inhalt (aktuell):** Extension `pgcrypto`; Tabellen `sites`, `users`, `user_secondary_sites`, `cost_centers`, `employees`, `assets` (inkl. optionalem `thumbnail_path`); Tracking `schema_migrations`. Datei-Uploads unter `apps/api/uploads/` (nicht im Git).
 - **App-Zugriff:** `DATABASE_URL` zeigt auf `/pulse_dev`. Wartung/Anlage über `POSTGRES_ADMIN_URL` auf die Datenbank `postgres`.
 - **ORM:** keines. SQL-Migrationen unter `apps/api/db/migrations/`, Zugriff über `pg`.
 - **Migrationen:** `pnpm --filter @pulse/api db:migrate` · Seed: `pnpm --filter @pulse/api db:seed`
@@ -221,14 +237,18 @@ pulse/
 - Wird referenziert, zeigt die UI den `key` des Zieldatensatzes, nicht die `uid`. Intern speichert die DB weiterhin die `uid`.
 - **Site / Mandant**
   - `sites` ist die Mandanten-Wurzel (ohne `fk_site`).
-  - **Hauptmandant:** jeder User hat genau eine Site über `users.fk_site` (1:1). Zugang zu diesem Mandanten; neue Datensätze des Users erhalten standardmäßig dieses `fk_site`.
-  - **Nebenmandant:** zusätzliche Sites über `user_secondary_sites` (1:n). Zugang zu diesen Mandanten, ohne dass sie der Default für neue Records sind.
+  - Mandanten steuern Lese- und Schreibzugriff: sichtbar und pflegbar sind Datensätze mit `fk_site` auf einen Mandanten, zu dem der Benutzer Zugang hat.
+  - **Hauptmandant:** jeder User hat genau eine Site über `users.fk_site` (1:1). Im Normalfall Zugang nur zu diesem Mandanten.
+  - **Nebenmandant:** zusätzliche Sites über `user_secondary_sites` (1:n), gepflegt im Feld Nebenmandanten. Erweitert den Zugang um genau diese Sites; sie sind nicht der Default für neue Records.
+  - Neue Datensätze erhalten das `fk_site` des Hauptmandanten des anlegenden Benutzers. Ausnahme **Aufträge** (noch nicht umgesetzt): der Auftrag übernimmt den Mandanten des zugehörigen Assets.
+  - Ausnahme App **Mandanten:** alle Sites sind sichtbar und pflegbar (siehe Site-CRUD).
 - Abgesprochenes Schema (Kurzform):
   - `sites(uid, key, name, color_code, created_at, updated_at)` mit Check `color_code ~ '^#[0-9A-Fa-f]{6}$'`
   - `users(uid, key, fk_site, fk_employee, login_name, first_name, last_name, password_hash, …)` mit `UNIQUE(fk_site, key)`, `UNIQUE(fk_site, login_name)` und partieller Unique auf `fk_employee`
   - `user_secondary_sites(uid, key, fk_site, fk_user, fk_secondary_site, …)` mit `UNIQUE(fk_user, fk_secondary_site)`
   - `cost_centers(uid, key, fk_site, name, created_at, updated_at)` mit `UNIQUE(fk_site, key)`
   - `employees(uid, key, fk_site, first_name, last_name, created_at, updated_at)` mit `UNIQUE(fk_site, key)`
+  - `assets(uid, key, fk_site, type, fk_parent, fk_cost_center, serial_number, manufacturer, thumbnail_path, created_at, updated_at)` mit `UNIQUE(fk_site, key)`, Check auf `type`, Check `type = location OR fk_parent IS NOT NULL` (Standort darf Wurzel sein; Rangregel Eltern/Kind in der API)
 - **User-CRUD (abgesprochen):**
   - Sichtbar und pflegbar sind nur Benutzer mit `users.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
   - Hauptmandant neuer/geänderter Benutzer ist immer der des Aufrufers (nicht wählbar).
@@ -240,17 +260,26 @@ pulse/
   - Sichtbar und pflegbar sind alle Mandanten (`sites`).
   - Felder: `key`, `name`, `color_code` (alle Pflicht; `key` global eindeutig; `color_code` Hex `#RRGGBB`, speichern als Uppercase).
   - `SiteRef` in Auth/User-Antworten enthält `colorCode`.
-  - Löschen nur, wenn keine Referenz in `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site` oder `employees.fk_site` existiert; sonst `409`.
+  - Löschen nur, wenn keine Referenz in `users.fk_site`, `user_secondary_sites.fk_site`, `user_secondary_sites.fk_secondary_site`, `cost_centers.fk_site`, `employees.fk_site` oder `assets.fk_site` existiert; sonst `409`.
   - Bei Schlüsseländerung: USS-`key` der Zuordnungen mit `fk_secondary_site` = dieser Site werden auf `USS-{userKey}-{siteKey}` aktualisiert.
 - **Kostenstellen-CRUD (abgesprochen):**
   - Sichtbar und pflegbar sind nur Kostenstellen mit `cost_centers.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
   - Felder: `key`, `name` (beide Pflicht; `key` eindeutig je Mandant).
   - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
+  - Löschen nur, wenn kein `assets.fk_cost_center` darauf zeigt; sonst `409`.
 - **Mitarbeiter-CRUD (abgesprochen):**
   - Sichtbar und pflegbar sind nur Mitarbeiter mit `employees.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
   - Felder: `key`, `first_name`, `last_name` (alle Pflicht; `key` eindeutig je Mandant).
   - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
   - Löschen nur, wenn kein `users.fk_employee` darauf zeigt; sonst `409`.
+- **Asset-CRUD (abgesprochen):**
+  - Sichtbar und pflegbar sind nur Assets mit `assets.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
+  - Felder: `key`, `type` (Pflicht), `parentKey` (Pflicht außer Standort → `null`), `costCenterKey` (Pflicht), `serialNumber`, `manufacturer` (optional; leer → `NULL`), `thumbnailUrl` (nur Antwort; optional).
+  - `type`: `location` | `building` | `area` | `assembly` | `maintenance_object`.
+  - Hierarchie: Eltern darf nur gleiche oder tiefere Stufe hosten (Standort…Instandhaltungsobjekt). Standort-Bezug optional; alle anderen Typen Pflicht-Bezug. Keine Bezug-Zyklen.
+  - Typwechsel nur ohne Kinder; Löschen nur ohne Kinder; sonst `409`.
+  - Thumbnail-Datei unter `uploads/assets/{uid}.{ext}`; `thumbnail_path` in der DB; öffentliche Auslieferung `GET /api/uploads/assets/:filename`.
+  - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
 
 ## Ports
 
@@ -295,22 +324,33 @@ Belegt durch andere Projekte: Vereinsmanager API `3001`, Redex API `3002`.
   - `POST /api/cost-centers` — anlegen (`key`, `name`)
   - `GET /api/cost-centers/:key` — eine Kostenstelle
   - `PATCH /api/cost-centers/:key` — bearbeiten
-  - `DELETE /api/cost-centers/:key` — löschen
+  - `DELETE /api/cost-centers/:key` — löschen (bei Referenz `409`)
 - Mitarbeiter-CRUD (Bearer JWT, Antworten ohne `uid`):
   - `GET /api/employees` — Liste des eigenen Hauptmandanten
   - `POST /api/employees` — anlegen (`key`, `firstName`, `lastName`)
   - `GET /api/employees/:key` — ein Mitarbeiter
   - `PATCH /api/employees/:key` — bearbeiten
   - `DELETE /api/employees/:key` — löschen (bei Referenz `409`)
+- Asset-CRUD (Bearer JWT, Antworten ohne `uid`):
+  - `GET /api/assets` — Liste des eigenen Hauptmandanten
+  - `POST /api/assets` — anlegen (`key`, `type`, `parentKey`, `costCenterKey`, `serialNumber`, `manufacturer`)
+  - `GET /api/assets/:key` — ein Asset
+  - `PATCH /api/assets/:key` — bearbeiten
+  - `POST /api/assets/:key/thumbnail` — Thumbnail hochladen (multipart Feld `file`)
+  - `DELETE /api/assets/:key/thumbnail` — Thumbnail entfernen
+  - `DELETE /api/assets/:key` — löschen (bei Kindern `409`)
+- Uploads (öffentlich lesbar):
+  - `GET /api/uploads/assets/:filename` — Asset-Thumbnail-Datei
 
 ## Web (aktuell)
 
-- Login, Dashboard-Platzhalter, App „Benutzer“ unter `/users`, App „Mandanten“ unter `/sites`, App „Kostenstellen“ unter `/cost-centers` und App „Mitarbeiter“ unter `/employees`: jeweils **LP** (Liste) und **EP** (Anlegen/Bearbeiten per Doppelklick). Globale Suche filtert die Liste und hebt im Editor passende Felder hervor.
+- Login, danach Start auf `/sites`. Sidebar nur mit den gebauten Apps: „Mandanten“ unter `/sites`, „Kostenstellen“ unter `/cost-centers`, „Assets“ unter `/assets`, „Mitarbeiter“ unter `/employees`, „Benutzer“ unter `/users`. Jeweils **LP** (Liste) und **EP** (Anlegen/Bearbeiten per Doppelklick). Globale Suche filtert die Liste und hebt im Editor passende Felder hervor.
 
 ## Nächste Schritte (nur nach Absprache)
 
 - Mobile Login
 - Passwort-vergessen
 - Site-Umschalter
+- Aufträge übernehmen den Mandanten des Assets
 - CMMS-Domänenmodule
 - Shared-Packages bei Bedarf

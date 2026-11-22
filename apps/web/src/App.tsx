@@ -1,12 +1,12 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
+import { AssetFormPage } from "./pages/AssetFormPage";
+import { AssetsPage } from "./pages/AssetsPage";
 import { CostCenterFormPage } from "./pages/CostCenterFormPage";
 import { CostCentersPage } from "./pages/CostCentersPage";
 import { EmployeeFormPage } from "./pages/EmployeeFormPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
-import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
-import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SiteFormPage } from "./pages/SiteFormPage";
 import { SitesPage } from "./pages/SitesPage";
 import { UserFormPage } from "./pages/UserFormPage";
@@ -17,90 +17,23 @@ export const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <HomePage />, handle: { title: "Dashboard" } },
-      {
-        path: "/assets",
-        element: <PlaceholderPage />,
-        handle: { title: "Assets & Anlagen" },
-      },
-      {
-        path: "/maintenance-plans",
-        element: <PlaceholderPage />,
-        handle: { title: "Wartungspläne" },
-      },
-      {
-        path: "/work-orders",
-        element: <PlaceholderPage />,
-        handle: { title: "Arbeitsaufträge" },
-      },
-      {
-        path: "/spare-parts",
-        element: <PlaceholderPage />,
-        handle: { title: "Ersatzteillager" },
-      },
-      {
-        path: "/reports",
-        element: <PlaceholderPage />,
-        handle: { title: "Berichte & Telemetrie" },
-      },
-      { path: "/sites", element: <SitesPage />, handle: { title: "Mandanten" } },
-      {
-        path: "/sites/new",
-        element: <SiteFormPage />,
-        handle: { title: "Mandant anlegen" },
-      },
-      {
-        path: "/sites/:key/edit",
-        element: <SiteFormPage />,
-        handle: { title: "Mandant bearbeiten" },
-      },
-      {
-        path: "/cost-centers",
-        element: <CostCentersPage />,
-        handle: { title: "Kostenstellen" },
-      },
-      {
-        path: "/cost-centers/new",
-        element: <CostCenterFormPage />,
-        handle: { title: "Kostenstelle anlegen" },
-      },
-      {
-        path: "/cost-centers/:key/edit",
-        element: <CostCenterFormPage />,
-        handle: { title: "Kostenstelle bearbeiten" },
-      },
-      {
-        path: "/employees",
-        element: <EmployeesPage />,
-        handle: { title: "Mitarbeiter" },
-      },
-      {
-        path: "/employees/new",
-        element: <EmployeeFormPage />,
-        handle: { title: "Mitarbeiter anlegen" },
-      },
-      {
-        path: "/employees/:key/edit",
-        element: <EmployeeFormPage />,
-        handle: { title: "Mitarbeiter bearbeiten" },
-      },
-      { path: "/users", element: <UsersPage />, handle: { title: "Benutzer" } },
-      {
-        path: "/users/new",
-        element: <UserFormPage />,
-        handle: { title: "Benutzer anlegen" },
-      },
-      {
-        path: "/users/:key/edit",
-        element: <UserFormPage />,
-        handle: { title: "Benutzer bearbeiten" },
-      },
-      {
-        path: "/settings",
-        element: <PlaceholderPage />,
-        handle: { title: "Einstellungen" },
-      },
+      { path: "/", element: <Navigate to="/sites" replace /> },
+      { path: "/sites", element: <SitesPage /> },
+      { path: "/sites/new", element: <SiteFormPage /> },
+      { path: "/sites/:key/edit", element: <SiteFormPage /> },
+      { path: "/cost-centers", element: <CostCentersPage /> },
+      { path: "/cost-centers/new", element: <CostCenterFormPage /> },
+      { path: "/cost-centers/:key/edit", element: <CostCenterFormPage /> },
+      { path: "/assets", element: <AssetsPage /> },
+      { path: "/assets/new", element: <AssetFormPage /> },
+      { path: "/assets/:key/edit", element: <AssetFormPage /> },
+      { path: "/employees", element: <EmployeesPage /> },
+      { path: "/employees/new", element: <EmployeeFormPage /> },
+      { path: "/employees/:key/edit", element: <EmployeeFormPage /> },
+      { path: "/users", element: <UsersPage /> },
+      { path: "/users/new", element: <UserFormPage /> },
+      { path: "/users/:key/edit", element: <UserFormPage /> },
     ],
   },
-  { path: "*", element: <Navigate to="/" replace /> },
+  { path: "*", element: <Navigate to="/sites" replace /> },
 ]);

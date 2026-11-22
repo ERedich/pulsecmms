@@ -189,6 +189,98 @@ async function main() {
       [employeeWeberUid, demoUid],
     );
 
+    const costCenterUid = await client.query<{ uid: string }>(
+      `SELECT uid FROM cost_centers WHERE fk_site = $1 AND key = 'KS-1000'`,
+      [primaryUid],
+    );
+    const ks1000Uid = costCenterUid.rows[0]?.uid;
+    if (!ks1000Uid) {
+      throw new Error("Failed to resolve cost center KS-1000");
+    }
+
+    const assetChain: Array<{
+      key: string;
+      type: string;
+      parentKey: string | null;
+      serialNumber: string | null;
+      manufacturer: string | null;
+    }> = [
+      {
+        key: "AS-LOC-01",
+        type: "location",
+        parentKey: null,
+        serialNumber: null,
+        manufacturer: null,
+      },
+      {
+        key: "AS-BLD-01",
+        type: "building",
+        parentKey: "AS-LOC-01",
+        serialNumber: null,
+        manufacturer: null,
+      },
+      {
+        key: "AS-AREA-01",
+        type: "area",
+        parentKey: "AS-BLD-01",
+        serialNumber: null,
+        manufacturer: null,
+      },
+      {
+        key: "AS-ASM-01",
+        type: "assembly",
+        parentKey: "AS-AREA-01",
+        serialNumber: "SN-ASM-001",
+        manufacturer: "Pulse Technik",
+      },
+      {
+        key: "AS-MO-01",
+        type: "maintenance_object",
+        parentKey: "AS-ASM-01",
+        serialNumber: "SN-MO-001",
+        manufacturer: "Pulse Technik",
+      },
+    ];
+
+    const assetUids = new Map<string, string>();
+    for (const asset of assetChain) {
+      const parentUid = asset.parentKey
+        ? assetUids.get(asset.parentKey)
+        : null;
+      if (asset.parentKey && !parentUid) {
+        throw new Error(`Failed to resolve parent asset ${asset.parentKey}`);
+      }
+
+      const inserted = await client.query<{ uid: string }>(
+        `INSERT INTO assets (
+           key, fk_site, type, fk_parent, fk_cost_center, serial_number, manufacturer
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (fk_site, key) DO UPDATE SET
+           type = EXCLUDED.type,
+           fk_parent = EXCLUDED.fk_parent,
+           fk_cost_center = EXCLUDED.fk_cost_center,
+           serial_number = EXCLUDED.serial_number,
+           manufacturer = EXCLUDED.manufacturer,
+           updated_at = NOW()
+         RETURNING uid`,
+        [
+          asset.key,
+          primaryUid,
+          asset.type,
+          parentUid,
+          ks1000Uid,
+          asset.serialNumber,
+          asset.manufacturer,
+        ],
+      );
+      const uid = inserted.rows[0]?.uid;
+      if (!uid) {
+        throw new Error(`Failed to upsert asset ${asset.key}`);
+      }
+      assetUids.set(asset.key, uid);
+    }
+
     await client.query("COMMIT");
     console.log("Seed complete:");
     console.log("  sites: DEMO (primary), NORD (secondary)");
@@ -199,6 +291,9 @@ async function main() {
     );
     console.log(
       "  employees (DEMO): MA-0001 … MA-0010",
+    );
+    console.log(
+      "  assets (DEMO): AS-LOC-01 → AS-BLD-01 → AS-AREA-01 → AS-ASM-01 → AS-MO-01",
     );
   } catch (error) {
     await client.query("ROLLBACK");
