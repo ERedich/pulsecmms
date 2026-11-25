@@ -4,6 +4,7 @@ import {
   IconBuilding,
   IconCash,
   IconIdBadge2,
+  IconListTree,
   IconUsers,
 } from "@tabler/icons-react";
 
@@ -17,6 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: "/sites", label: "Mandanten", icon: IconBuilding },
   { path: "/cost-centers", label: "Kostenstellen", icon: IconCash },
   { path: "/assets", label: "Assets", icon: IconBox },
+  { path: "/asset-tree", label: "Baumstruktur", icon: IconListTree },
   { path: "/employees", label: "Mitarbeiter", icon: IconIdBadge2 },
   { path: "/users", label: "Benutzer", icon: IconUsers },
 ];

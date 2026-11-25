@@ -325,7 +325,7 @@ export class AssetsService {
         ? null
         : dto.parentKey.trim();
     if (parentKey !== null && parentKey.length === 0) {
-      throw new BadRequestException("Bezug darf nicht leer sein");
+      throw new BadRequestException("Typ darf nicht leer sein");
     }
 
     return {
@@ -433,7 +433,7 @@ export class AssetsService {
     if (parentKey === null) {
       if (parentIsRequired(type)) {
         throw new ConflictException(
-          "Bezug ist für diesen Asset-Typ Pflicht",
+          "Typ ist für diesen Asset-Typ Pflicht",
         );
       }
       return null;
@@ -446,13 +446,13 @@ export class AssetsService {
     const parent = result.rows[0];
     if (!parent) {
       throw new ConflictException(
-        "Bezug nicht gefunden oder gehört nicht zum Mandanten",
+        "Typ nicht gefunden oder gehört nicht zum Mandanten",
       );
     }
 
     if (!isAssetType(parent.type)) {
       throw new ConflictException(
-        "Bezug hat einen ungültigen Typ",
+        "Typ hat einen ungültigen Typ",
       );
     }
 
@@ -462,7 +462,7 @@ export class AssetsService {
 
     if (!canHostAssetType(parent.type, type)) {
       throw new ConflictException(
-        "Bezug darf keine Assets einer höheren Hierarchie-Stufe beherbergen",
+        "Typ darf keine Assets einer höheren Hierarchie-Stufe beherbergen",
       );
     }
 
@@ -484,7 +484,7 @@ export class AssetsService {
 
     while (current) {
       if (current === selfUid) {
-        throw new ConflictException("Bezug würde einen Zyklus erzeugen");
+        throw new ConflictException("Typ würde einen Zyklus erzeugen");
       }
       if (seen.has(current)) {
         return;

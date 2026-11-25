@@ -385,7 +385,7 @@ export function AssetsPage() {
                 onSort={toggleSort}
               />
               <SortableHeader
-                label="Bezug"
+                label="Typ"
                 column="parentKey"
                 activeColumn={sortColumn}
                 direction={sortDirection}
@@ -434,7 +434,7 @@ export function AssetsPage() {
               </th>
               <th className="px-3 py-2 font-normal">
                 <ColumnFilterInput
-                  label="Bezug filtern"
+                  label="Typ filtern"
                   value={filters.parentKey}
                   onChange={(value) => setFilter("parentKey", value)}
                 />

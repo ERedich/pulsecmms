@@ -2,6 +2,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { AssetFormPage } from "./pages/AssetFormPage";
 import { AssetsPage } from "./pages/AssetsPage";
+import { AssetTreePage } from "./pages/AssetTreePage";
 import { CostCenterFormPage } from "./pages/CostCenterFormPage";
 import { CostCentersPage } from "./pages/CostCentersPage";
 import { EmployeeFormPage } from "./pages/EmployeeFormPage";
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: "/assets", element: <AssetsPage /> },
       { path: "/assets/new", element: <AssetFormPage /> },
       { path: "/assets/:key/edit", element: <AssetFormPage /> },
+      { path: "/asset-tree", element: <AssetTreePage /> },
       { path: "/employees", element: <EmployeesPage /> },
       { path: "/employees/new", element: <EmployeeFormPage /> },
       { path: "/employees/:key/edit", element: <EmployeeFormPage /> },

@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Combobox } from "../components/Combobox";
 import { FloatingField } from "../components/FloatingField";
 import { OptionsActions } from "../components/layout/OptionsActions";
@@ -48,12 +48,31 @@ import { setPanelTransitionDirection } from "../lib/panelTransition";
 
 type Mode = "create" | "edit";
 
+type AssetFormLocationState = {
+  returnTo?: string;
+};
+
+function resolveReturnPath(state: unknown): string {
+  if (
+    state &&
+    typeof state === "object" &&
+    "returnTo" in state &&
+    typeof (state as AssetFormLocationState).returnTo === "string"
+  ) {
+    const returnTo = (state as AssetFormLocationState).returnTo;
+    if (returnTo === "/asset-tree") return returnTo;
+  }
+  return "/assets";
+}
+
 export function AssetFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   useRegisterGlobalSearch("ep");
   const { key: routeKey } = useParams<{ key: string }>();
   const mode: Mode = routeKey ? "edit" : "create";
   const currentUser = getStoredUser();
+  const returnPath = resolveReturnPath(location.state);
 
   const [key, setKey] = useState("");
   const [type, setType] = useState<AssetType>("location");
@@ -203,8 +222,8 @@ export function AssetFormPage() {
 
   const goBack = useCallback(() => {
     setPanelTransitionDirection("back");
-    navigate("/assets", { viewTransition: true });
-  }, [navigate]);
+    navigate(returnPath, { viewTransition: true });
+  }, [navigate, returnPath]);
 
   async function onPickThumbnail(file: File | null) {
     if (!file) return;
@@ -294,7 +313,7 @@ export function AssetFormPage() {
       }
 
       setPanelTransitionDirection("back");
-      navigate("/assets", { replace: true, viewTransition: true });
+      navigate(returnPath, { replace: true, viewTransition: true });
     } catch (err) {
       setError(
         err instanceof AssetsApiError
@@ -500,7 +519,7 @@ export function AssetFormPage() {
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <SearchableField
                 texts={[
-                  "Bezug",
+                  "Typ",
                   parentKey,
                   ...parentOptions.flatMap((option) => [
                     option.value,
@@ -510,7 +529,7 @@ export function AssetFormPage() {
               >
                 <Combobox
                   id="asset-parent"
-                  label="Bezug"
+                  label="Typ"
                   value={parentKey}
                   onChange={setParentKey}
                   options={parentOptions}
@@ -519,7 +538,7 @@ export function AssetFormPage() {
                     parentOptions.length === 0
                       ? parentRequired
                         ? "Keine passenden Eltern-Assets verfügbar."
-                        : "Kein Bezug möglich."
+                        : "Kein Typ möglich."
                       : "Keine Treffer"
                   }
                 />

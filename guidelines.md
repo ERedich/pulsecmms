@@ -174,17 +174,27 @@ Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
 
 Nur diese App. Das Muster oben gilt für alle; die Felder nicht.
 
-- LP-Spalten: Bild, Schlüssel, Typ, Bezug, Kostenstelle, Seriennummer, Hersteller. Standardsortierung Schlüssel aufsteigend. Bild ist ein 40×40-Vorschaubild oder „—“. Typ ist ein Pastell-Chip mit Icon und deutschem Label. Bezug, Seriennummer und Hersteller sind leer als „—“.
-- EP-Gruppen: **Basis Informationen** (`IconBox`: links Thumbnail mit Vorschau/Bild wählen/Entfernen, rechts Schlüssel, Typ, Seriennummer, Hersteller), **Referenzen** (`IconLink`: Bezug, Kostenstelle), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session).
-- Schema-Pflicht: Schlüssel, Typ, Kostenstelle. Bezug ist Pflicht außer beim Typ Standort. Seriennummer, Hersteller und Thumbnail sind optional. Mandant nicht wählbar und keine LP-Spalte.
+- LP-Spalten: Bild, Schlüssel, Typ, Typ, Kostenstelle, Seriennummer, Hersteller. Standardsortierung Schlüssel aufsteigend. Bild ist ein 40×40-Vorschaubild oder „—“. Die erste Spalte Typ ist die Art (Pastell-Chip mit Icon und deutschem Label). Die zweite Spalte Typ ist das Eltern-Asset, leer als „—“, ebenso Seriennummer und Hersteller.
+- EP-Gruppen: **Basis Informationen** (`IconBox`: links Thumbnail mit Vorschau/Bild wählen/Entfernen, rechts Schlüssel, Typ, Seriennummer, Hersteller), **Referenzen** (`IconLink`: Typ, Kostenstelle), **Mandant** (`IconBuilding`: Mandant nur lesbar aus der Session).
+- Schema-Pflicht: Schlüssel, Typ (Art), Kostenstelle. Das Eltern-Asset (Label Typ) ist Pflicht außer bei der Art Standort. Seriennummer, Hersteller und Thumbnail sind optional. Mandant nicht wählbar und keine LP-Spalte.
 - Thumbnail: optionaler Datei-Upload auf dem API-Server (`apps/api/uploads/assets/`, gitignoriert). Erlaubt JPEG/PNG/WebP, max. 2 MB. DB-Spalte `thumbnail_path` speichert nur den Dateinamen; API liefert `thumbnailUrl`. Upload/Löschen über eigene Endpunkte; beim Anlegen wird die Datei nach dem Create hochgeladen. Beim Löschen des Assets wird die Datei mit entfernt.
-- Typ und Bezug sind Comboboxen (selItem). Typ-Optionen zeigen Farbe und Icon; Bezug-Optionen mit Farbe/Icon des Elterntyps. Standort: Bezug optional (Wurzel oder unter anderem Standort/gleicher Stufe). Alle anderen Typen: Bezug Pflicht.
+- Art und Eltern-Asset (beide Label Typ) sind Comboboxen (selItem). Art-Optionen zeigen Farbe und Icon; Eltern-Optionen mit Farbe/Icon der Eltern-Art. Standort: Eltern-Asset optional (Wurzel oder unter anderem Standort/gleicher Stufe). Alle anderen Arten: Eltern-Asset Pflicht.
 - Typ-Codes (DB englisch, UI deutsch) mit fester Pastellfarbe und Icon: `location` Standort `#BFDBFE` `IconMapPin`, `building` Gebäude `#A5F3FC` `IconBuilding`, `area` Fläche `#BBF7D0` `IconBorderCorners`, `assembly` Baugruppe `#FED7AA` `IconComponents`, `maintenance_object` Instandhaltungsobjekt `#FBCFE8` `IconTool`. Farbe/Icon nur UI, nicht in der DB.
-- Hierarchie (Rang von oben nach unten): Standort → Gebäude → Fläche → Baugruppe → Instandhaltungsobjekt. Ein Eltern-Asset darf nur Kinder gleicher oder tieferer Stufe beherbergen (nicht höher). Beispiel: Instandhaltungsobjekt direkt unter Standort ist erlaubt; Standort unter Baugruppe nicht. Standort darf unter Standort liegen. Bezug und Kostenstelle müssen zum eigenen Hauptmandanten gehören. Zyklen über den Bezug sind verboten.
+- Hierarchie (Rang von oben nach unten): Standort → Gebäude → Fläche → Baugruppe → Instandhaltungsobjekt. Ein Eltern-Asset darf nur Kinder gleicher oder tieferer Stufe beherbergen (nicht höher). Beispiel: Instandhaltungsobjekt direkt unter Standort ist erlaubt; Standort unter Baugruppe nicht. Standort darf unter Standort liegen. Eltern-Asset (Label Typ) und Kostenstelle müssen zum eigenen Hauptmandanten gehören. Zyklen über das Eltern-Asset sind verboten.
 - Typwechsel nur, solange keine Kinder existieren (`409`).
 - Sichtbar und pflegbar sind nur Assets mit `assets.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`). Neue Datensätze erhalten immer dieses `fk_site`.
 - `uid` erscheint nirgends; Navigation und Anzeige laufen über `key`.
 - Löschen ist verboten, solange Kinder (`fk_parent`) darauf zeigen (`409`). Mandanten-Löschen bleibt verboten, solange `assets.fk_site` darauf zeigt (`409`). Kostenstellen-Löschen bleibt verboten, solange `assets.fk_cost_center` darauf zeigt (`409`).
+
+### Referenz: Baumstruktur
+
+Nur diese App. Abweichung vom Standard-LP.
+
+- Zeigt dieselben Assets des Hauptmandanten als Tree Table über `parentKey` (`assets.fk_parent`). Kein eigener Endpunkt; Daten kommen von `GET /api/assets`.
+- LP-Spalten: Bild, Schlüssel, Typ, Kostenstelle, Seriennummer, Hersteller. Keine Eltern-Spalte — die Einrückung zeigt die Verknüpfung. Standardsortierung Schlüssel aufsteigend, gilt nur unter Geschwistern.
+- Schlüssel-Zelle: Aufklapp-Chevron eingerückt nach Tiefe; Blätter mit gleichem Abstand ohne Button. Start: alle Knoten mit Kindern aufgeklappt. Aktionen **Aufklappen** und **Zuklappen** für den gesamten Baum. Count = sichtbare Zeilen.
+- Kein Neu, kein Löschen. **Bearbeiten** und Doppelklick öffnen das Asset-EP (`/assets/:key/edit`) mit Rückkehr nach `/asset-tree`.
+- Spaltenfilter und globale Suche wie im Standard-LP. Ein Treffer in einem Kind behält die Vorfahren und klappt den Pfad auf, ohne den manuellen Aufklappzustand zu überschreiben.
 
 ### Referenz: Mitarbeiter
 
@@ -208,7 +218,7 @@ Dieselbe Fachlogik wie Web. Apps, LP, EP und Aktionen folgen den [App Guidelines
 pulse/
   apps/
     api/      NestJS API (+ db/migrations)
-    web/      Vite React Web (Login, Benutzer, Mandanten, Kostenstellen, Assets, Mitarbeiter)
+    web/      Vite React Web (Login, Benutzer, Mandanten, Kostenstellen, Assets, Baumstruktur, Mitarbeiter)
     mobile/   Expo React Native
   DESIGN_pulse.md
   guidelines.md
@@ -276,7 +286,7 @@ pulse/
   - Sichtbar und pflegbar sind nur Assets mit `assets.fk_site` = Hauptmandant des Aufrufers (JWT `siteUid`).
   - Felder: `key`, `type` (Pflicht), `parentKey` (Pflicht außer Standort → `null`), `costCenterKey` (Pflicht), `serialNumber`, `manufacturer` (optional; leer → `NULL`), `thumbnailUrl` (nur Antwort; optional).
   - `type`: `location` | `building` | `area` | `assembly` | `maintenance_object`.
-  - Hierarchie: Eltern darf nur gleiche oder tiefere Stufe hosten (Standort…Instandhaltungsobjekt). Standort-Bezug optional; alle anderen Typen Pflicht-Bezug. Keine Bezug-Zyklen.
+  - Hierarchie: Eltern darf nur gleiche oder tiefere Stufe hosten (Standort…Instandhaltungsobjekt). Eltern-Asset (Label Typ) bei Standort optional; bei allen anderen Arten Pflicht. Keine Zyklen über das Eltern-Asset.
   - Typwechsel nur ohne Kinder; Löschen nur ohne Kinder; sonst `409`.
   - Thumbnail-Datei unter `uploads/assets/{uid}.{ext}`; `thumbnail_path` in der DB; öffentliche Auslieferung `GET /api/uploads/assets/:filename`.
   - Neue Datensätze erhalten immer `fk_site` des Aufrufers (nicht wählbar).
@@ -344,7 +354,7 @@ Belegt durch andere Projekte: Vereinsmanager API `3001`, Redex API `3002`.
 
 ## Web (aktuell)
 
-- Login, danach Start auf `/sites`. Sidebar nur mit den gebauten Apps: „Mandanten“ unter `/sites`, „Kostenstellen“ unter `/cost-centers`, „Assets“ unter `/assets`, „Mitarbeiter“ unter `/employees`, „Benutzer“ unter `/users`. Jeweils **LP** (Liste) und **EP** (Anlegen/Bearbeiten per Doppelklick). Globale Suche filtert die Liste und hebt im Editor passende Felder hervor.
+- Login, danach Start auf `/sites`. Sidebar nur mit den gebauten Apps: „Mandanten“ unter `/sites`, „Kostenstellen“ unter `/cost-centers`, „Assets“ unter `/assets`, „Baumstruktur“ unter `/asset-tree`, „Mitarbeiter“ unter `/employees`, „Benutzer“ unter `/users`. Jeweils **LP** (Liste) und **EP** (Anlegen/Bearbeiten per Doppelklick); Baumstruktur ist nur LP und öffnet das Asset-EP. Globale Suche filtert die Liste und hebt im Editor passende Felder hervor.
 
 ## Nächste Schritte (nur nach Absprache)
 

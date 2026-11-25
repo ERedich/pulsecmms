@@ -2,7 +2,7 @@
 
 CMMS mit Fokus auf Web und Mobile. Grundgerüst mit Login, Benutzer-, Kostenstellen- und Mitarbeiterverwaltung für den eigenen Hauptmandanten und Mandantenverwaltung.
 
-Entscheidungen und Regeln: [guidelines.md](guidelines.md)
+Entscheidungen und Regeln: [guidelines.md](guidelines.md) · Ist-Schnitt Web/API/DB: [slice.md](slice.md)
 
 ## Stack
 
