@@ -1,6 +1,7 @@
 import { getAccessToken } from "./auth";
 
 export type ManagedEmployee = {
+  uid: string;
   key: string;
   firstName: string;
   lastName: string;

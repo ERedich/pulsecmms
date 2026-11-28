@@ -1,7 +1,6 @@
 import { IconCheck, IconChevronDown, IconX } from "@tabler/icons-react";
 import {
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,7 +8,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { tokenTone } from "../lib/tokenTone";
+import { useAnchoredListbox } from "./anchoredListbox";
 
 export type ComboboxOption = {
   value: string;
@@ -97,7 +98,6 @@ export function Combobox(props: ComboboxProps) {
   const [query, setQuery] = useState("");
   const [filtering, setFiltering] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [openUp, setOpenUp] = useState(false);
 
   const selected = props.options.find((option) => option.value === props.value);
   const selectedLabel = selected?.label ?? "";
@@ -115,12 +115,7 @@ export function Combobox(props: ComboboxProps) {
     props.value,
   );
 
-  useLayoutEffect(() => {
-    if (!open || !rootRef.current) return;
-    const rect = rootRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setOpenUp(spaceBelow < 280 && rect.top > spaceBelow);
-  }, [open]);
+  const listbox = useAnchoredListbox(open, rootRef);
 
   useEffect(() => {
     if (!open) return;
@@ -269,6 +264,11 @@ export function Combobox(props: ComboboxProps) {
     ? "border border-error/60 focus:border-error focus:ring-error"
     : "border border-outline-variant focus:border-primary focus:ring-primary";
   const hasValue = props.value.length > 0;
+  const showSwatch = Boolean(
+    selected && !filtering && (selected.icon || selected.color),
+  );
+  const SwatchIcon = showSwatch ? selected?.icon : undefined;
+  const swatchTone = showSwatch ? tokenTone(selected?.color) : null;
   const activeOptionId =
     open && activeOptionIndex >= 0
       ? `${props.id}-opt-${activeOptionIndex}`
@@ -299,11 +299,30 @@ export function Combobox(props: ComboboxProps) {
           aria-controls={listId}
           aria-activedescendant={activeOptionId}
           className={[
-            "peer block w-full rounded bg-surface-container-lowest py-2.5 pl-3.5 text-sm text-on-surface focus:ring-1 focus:outline-none",
+            "peer block w-full rounded bg-surface-container-lowest py-2.5 text-sm text-on-surface selection:bg-primary/20 selection:text-on-surface focus:ring-1 focus:outline-none",
+            showSwatch ? "pl-10" : "pl-3.5",
             hasValue ? "pr-[4.5rem]" : "pr-10",
             accent,
           ].join(" ")}
         />
+        {showSwatch ? (
+          <span
+            className={[
+              "pointer-events-none absolute top-1/2 left-2.5 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded",
+              swatchTone ? "" : "bg-surface-container-high text-on-surface",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            style={swatchTone ?? undefined}
+            aria-hidden
+          >
+            {SwatchIcon ? (
+              <SwatchIcon size={14} stroke={1.75} />
+            ) : (
+              <span className="h-2.5 w-2.5 rounded-full bg-current opacity-40" />
+            )}
+          </span>
+        ) : null}
         <label
           htmlFor={props.id}
           className={[
@@ -353,16 +372,24 @@ export function Combobox(props: ComboboxProps) {
           </button>
         </div>
       </div>
-      {open ? (
+      {open && listbox
+        ? createPortal(
         <ul
           id={listId}
           role="listbox"
           aria-label={props.label}
           onMouseDown={(event) => event.preventDefault()}
-          className={[
-            "absolute right-0 left-0 z-30 max-h-60 overflow-auto overscroll-contain rounded border border-outline-variant bg-surface-container-lowest py-1 shadow-lg",
-            openUp ? "bottom-full mb-1" : "top-full mt-1",
-          ].join(" ")}
+          className="z-50 overflow-auto overscroll-contain rounded border border-outline-variant bg-surface-container-lowest py-1 shadow-lg"
+          style={{
+            position: "fixed",
+            left: listbox.left,
+            width: listbox.width,
+            maxHeight: listbox.maxHeight,
+            top: listbox.openUp ? undefined : listbox.top,
+            bottom: listbox.openUp
+              ? window.innerHeight - listbox.top
+              : undefined,
+          }}
         >
           {visibleOptions.length === 0 ? (
             <li className="px-3.5 py-2 text-sm text-on-surface-variant">
@@ -430,8 +457,10 @@ export function Combobox(props: ComboboxProps) {
               );
             })
           )}
-        </ul>
-      ) : null}
+        </ul>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

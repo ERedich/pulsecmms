@@ -2,6 +2,7 @@ import {
   IconBell,
   IconBolt,
   IconLogout,
+  IconSparkles,
 } from "@tabler/icons-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import type { AuthUser } from "../../lib/auth";
@@ -13,9 +14,10 @@ type SidebarProps = {
   user: AuthUser;
   open: boolean;
   onNavigate?: () => void;
+  onOpenAi?: () => void;
 };
 
-export function Sidebar({ user, open, onNavigate }: SidebarProps) {
+export function Sidebar({ user, open, onNavigate, onOpenAi }: SidebarProps) {
   const navigate = useNavigate();
   const displayName =
     `${user.firstName} ${user.lastName}`.trim() || user.loginName;
@@ -39,7 +41,7 @@ export function Sidebar({ user, open, onNavigate }: SidebarProps) {
       ].join(" ")}
     >
       <div className="flex flex-col">
-        <div className="flex h-16 items-center border-b border-outline-variant/70 px-3">
+        <div className="flex h-16 items-center px-3">
           <div className="flex items-center gap-3 px-3">
             <IconBolt size={20} stroke={2.2} className="shrink-0 text-primary" />
             <span className="text-sm font-semibold tracking-[0.22em] text-on-surface uppercase">
@@ -82,7 +84,7 @@ export function Sidebar({ user, open, onNavigate }: SidebarProps) {
         </nav>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-outline-variant/70 px-3 py-4">
+      <div className="flex flex-col gap-3 px-3 py-4">
         <div className="flex items-center gap-2 px-3">
           <button
             type="button"
@@ -92,6 +94,15 @@ export function Sidebar({ user, open, onNavigate }: SidebarProps) {
             <IconBell size={20} stroke={1.75} />
           </button>
           <ThemeToggle />
+          <button
+            type="button"
+            onClick={onOpenAi}
+            aria-label="Pulse KI öffnen"
+            title="Pulse KI"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-primary/15 text-primary transition-colors hover:bg-primary/25"
+          >
+            <IconSparkles size={20} stroke={1.75} />
+          </button>
         </div>
 
         <div className="flex min-w-0 items-center gap-3 px-3">

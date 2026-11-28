@@ -1,12 +1,11 @@
-import {
-  IconBuilding,
-  IconDeviceFloppy,
-  IconIdBadge2,
-  IconX,
-} from "@tabler/icons-react";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { IconIdBadge2, IconX } from "@tabler/icons-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FloatingField } from "../components/FloatingField";
+import { FormSection } from "../components/FormSection";
+import { MiscFormSection } from "../components/MiscFormSection";
+import { SaveButtonGroup } from "../components/SaveButtonGroup";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import { getStoredUser } from "../lib/auth";
 import {
@@ -20,16 +19,20 @@ import { setPanelTransitionDirection } from "../lib/panelTransition";
 
 type Mode = "create" | "edit";
 
+const FORM_ID = "employee-form";
+
 export function EmployeeFormPage() {
   const navigate = useNavigate();
   useRegisterGlobalSearch("ep");
   const { key: routeKey } = useParams<{ key: string }>();
   const mode: Mode = routeKey ? "edit" : "create";
   const currentUser = getStoredUser();
+  const closeAfterSaveRef = useRef(false);
 
   const [key, setKey] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +54,7 @@ export function EmployeeFormPage() {
         const employee = await getEmployee(routeKey);
         if (cancelled) return;
         setOriginalKey(employee.key);
+        setUid(employee.uid);
         setKey(employee.key);
         setFirstName(employee.firstName);
         setLastName(employee.lastName);
@@ -80,8 +84,18 @@ export function EmployeeFormPage() {
     navigate("/employees", { viewTransition: true });
   }, [navigate]);
 
+  const requestSaveAndClose = useCallback(() => {
+    closeAfterSaveRef.current = true;
+    const form = document.getElementById(FORM_ID);
+    if (form instanceof HTMLFormElement) {
+      form.requestSubmit();
+    }
+  }, []);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const shouldClose = closeAfterSaveRef.current;
+    closeAfterSaveRef.current = false;
     setError(null);
     setSubmitting(true);
 
@@ -93,14 +107,28 @@ export function EmployeeFormPage() {
       };
 
       const previousKey = originalKey ?? routeKey ?? payload.key;
-      if (mode === "create") {
-        await createEmployee(payload);
-      } else {
-        await updateEmployee(previousKey, payload);
+      const saved =
+        mode === "create"
+          ? await createEmployee(payload)
+          : await updateEmployee(previousKey, payload);
+
+      if (shouldClose) {
+        setPanelTransitionDirection("back");
+        navigate("/employees", { replace: true, viewTransition: true });
+        return;
       }
 
-      setPanelTransitionDirection("back");
-      navigate("/employees", { replace: true, viewTransition: true });
+      setOriginalKey(saved.key);
+      setUid(saved.uid);
+      setKey(saved.key);
+      setFirstName(saved.firstName);
+      setLastName(saved.lastName);
+
+      if (mode === "create" || previousKey !== saved.key) {
+        navigate(`/employees/${encodeURIComponent(saved.key)}/edit`, {
+          replace: true,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof EmployeesApiError
@@ -112,19 +140,13 @@ export function EmployeeFormPage() {
     }
   }
 
-  const primaryLabel = currentUser
-    ? `${currentUser.primarySite.key} — ${currentUser.primarySite.name}`
-    : "—";
-
   const pageTitle =
     mode === "create" ? "Mitarbeiter anlegen" : "Mitarbeiter bearbeiten";
 
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <h1 className="w-52 shrink-0 truncate text-lg leading-6 font-semibold text-on-surface">
-          {pageTitle}
-        </h1>
+        <AppTitle title={pageTitle} />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 
@@ -150,15 +172,12 @@ export function EmployeeFormPage() {
         >
           {() => (
             <>
-              <button
-                type="submit"
-                form="employee-form"
-                disabled={loading || submitting}
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-primary bg-primary px-3 text-sm font-semibold text-on-primary transition-colors hover:border-primary-container hover:bg-primary-container disabled:pointer-events-none disabled:opacity-50"
-              >
-                <IconDeviceFloppy size={18} stroke={1.75} />
-                {submitting ? "Speichern…" : "Speichern"}
-              </button>
+              <SaveButtonGroup
+                formId={FORM_ID}
+                disabled={loading}
+                submitting={submitting}
+                onSaveAndClose={requestSaveAndClose}
+              />
 
               <button
                 type="button"
@@ -178,21 +197,15 @@ export function EmployeeFormPage() {
         <p className="mt-8 px-3 text-sm text-on-surface-variant">Laden…</p>
       ) : (
         <form
-          id="employee-form"
+          id={FORM_ID}
           className="mt-8 flex w-full flex-col gap-8 px-3"
           onSubmit={onSubmit}
         >
-          <section
-            aria-labelledby="employee-base-heading"
-            className="flex flex-col gap-4"
+          <FormSection
+            headingId="employee-base-heading"
+            title="Basis Informationen"
+            icon={IconIdBadge2}
           >
-            <h2
-              id="employee-base-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconIdBadge2 size={18} stroke={1.75} className="text-primary" />
-              Basis Informationen
-            </h2>
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field
                 id="employee-key"
@@ -219,34 +232,13 @@ export function EmployeeFormPage() {
                 autoComplete="family-name"
               />
             </div>
-          </section>
+          </FormSection>
 
-          <section
-            aria-labelledby="employee-site-heading"
-            className="flex flex-col gap-4"
-          >
-            <h2
-              id="employee-site-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconBuilding
-                size={18}
-                stroke={1.75}
-                className="text-primary"
-              />
-              Mandant
-            </h2>
-            <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <SearchableField texts={["Mandant", primaryLabel]}>
-                <span className="mb-1.5 block text-xs font-medium leading-4 text-on-surface-variant">
-                  Mandant
-                </span>
-                <p className="rounded border border-outline-variant/70 bg-surface-container-low px-3.5 py-2.5 text-sm text-on-surface">
-                  {primaryLabel}
-                </p>
-              </SearchableField>
-            </div>
-          </section>
+          <MiscFormSection
+            headingId="employee-misc-heading"
+            uid={uid}
+            site={currentUser?.primarySite ?? null}
+          />
         </form>
       )}
     </div>

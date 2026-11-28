@@ -16,6 +16,7 @@ export type EmployeeRow = {
 };
 
 export type EmployeePublic = {
+  uid: string;
   key: string;
   firstName: string;
   lastName: string;
@@ -135,6 +136,7 @@ export class EmployeesService {
 
   private toPublic(employee: EmployeeRow): EmployeePublic {
     return {
+      uid: employee.uid,
       key: employee.key,
       firstName: employee.first_name,
       lastName: employee.last_name,

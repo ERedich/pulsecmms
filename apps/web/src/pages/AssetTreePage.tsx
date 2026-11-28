@@ -4,6 +4,7 @@ import {
   IconChevronUp,
   IconFold,
   IconFoldDown,
+  IconPaperclip,
   IconPencil,
   IconSelector,
 } from "@tabler/icons-react";
@@ -16,6 +17,7 @@ import {
   type MouseEvent,
 } from "react";
 import { useNavigate } from "react-router-dom";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import {
   buildAssetTree,
@@ -33,6 +35,7 @@ import {
   type AssetType,
   type ManagedAsset,
 } from "../lib/assets";
+import { getDocumentCounts } from "../lib/documents";
 import {
   matchesAnyField,
   textIncludes,
@@ -47,7 +50,8 @@ type SortColumn =
   | "type"
   | "costCenterKey"
   | "serialNumber"
-  | "manufacturer";
+  | "manufacturer"
+  | "documents";
 type SortDirection = "asc" | "desc";
 
 type ColumnFilters = {
@@ -56,6 +60,7 @@ type ColumnFilters = {
   costCenterKey: string;
   serialNumber: string;
   manufacturer: string;
+  documents: string;
 };
 
 const EMPTY_FILTERS: ColumnFilters = {
@@ -64,6 +69,7 @@ const EMPTY_FILTERS: ColumnFilters = {
   costCenterKey: "",
   serialNumber: "",
   manufacturer: "",
+  documents: "",
 };
 
 const RETURN_TO_TREE = { returnTo: "/asset-tree" } as const;
@@ -72,10 +78,15 @@ function displayOptional(value: string | null): string {
   return value && value.length > 0 ? value : "—";
 }
 
+function documentCountLabel(count: number): string {
+  return count > 0 ? String(count) : "—";
+}
+
 function compareAssets(
   a: ManagedAsset,
   b: ManagedAsset,
   column: SortColumn,
+  documentCounts: Record<string, number>,
 ): number {
   switch (column) {
     case "key":
@@ -94,20 +105,33 @@ function compareAssets(
         displayOptional(b.manufacturer),
         "de",
       );
+    case "documents":
+      return (documentCounts[a.key] ?? 0) - (documentCounts[b.key] ?? 0);
   }
 }
 
-function matchesFilters(asset: ManagedAsset, filters: ColumnFilters): boolean {
+function matchesFilters(
+  asset: ManagedAsset,
+  filters: ColumnFilters,
+  documentCounts: Record<string, number>,
+): boolean {
   return (
     textIncludes(asset.key, filters.key) &&
     textIncludes(assetTypeLabel(asset.type), filters.type) &&
     textIncludes(asset.costCenterKey, filters.costCenterKey) &&
     textIncludes(displayOptional(asset.serialNumber), filters.serialNumber) &&
-    textIncludes(displayOptional(asset.manufacturer), filters.manufacturer)
+    textIncludes(displayOptional(asset.manufacturer), filters.manufacturer) &&
+    textIncludes(
+      documentCountLabel(documentCounts[asset.key] ?? 0),
+      filters.documents,
+    )
   );
 }
 
-function searchableAssetText(asset: ManagedAsset): string[] {
+function searchableAssetText(
+  asset: ManagedAsset,
+  documentCounts: Record<string, number>,
+): string[] {
   return [
     asset.key,
     assetTypeLabel(asset.type),
@@ -115,6 +139,7 @@ function searchableAssetText(asset: ManagedAsset): string[] {
     asset.costCenterKey,
     displayOptional(asset.serialNumber),
     displayOptional(asset.manufacturer),
+    documentCountLabel(documentCounts[asset.key] ?? 0),
   ];
 }
 
@@ -131,6 +156,9 @@ export function AssetTreePage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [filters, setFilters] = useState<ColumnFilters>(EMPTY_FILTERS);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const [documentCounts, setDocumentCounts] = useState<Record<string, number>>(
+    {},
+  );
   const initializedExpandRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -147,6 +175,9 @@ export function AssetTreePage() {
         }
         return kept;
       });
+      void getDocumentCounts("assets")
+        .then((counts) => setDocumentCounts(counts))
+        .catch(() => setDocumentCounts({}));
     } catch (err) {
       setError(
         err instanceof AssetsApiError
@@ -164,10 +195,10 @@ export function AssetTreePage() {
 
   const siblingCompare = useCallback(
     (a: ManagedAsset, b: ManagedAsset) => {
-      const result = compareAssets(a, b, sortColumn);
+      const result = compareAssets(a, b, sortColumn, documentCounts);
       return sortDirection === "asc" ? result : -result;
     },
-    [sortColumn, sortDirection],
+    [documentCounts, sortColumn, sortDirection],
   );
 
   const fullTree = useMemo(
@@ -204,10 +235,13 @@ export function AssetTreePage() {
     return filterAssetTree(
       fullTree,
       (asset) =>
-        matchesFilters(asset, filters) &&
-        matchesAnyField(searchQuery, searchableAssetText(asset)),
+        matchesFilters(asset, filters, documentCounts) &&
+        matchesAnyField(
+          searchQuery,
+          searchableAssetText(asset, documentCounts),
+        ),
     );
-  }, [filters, fullTree, hasActiveConstraint, searchQuery]);
+  }, [documentCounts, filters, fullTree, hasActiveConstraint, searchQuery]);
 
   const forcedExpandKeys = useMemo(() => {
     if (!hasActiveConstraint) return new Set<string>();
@@ -330,16 +364,10 @@ export function AssetTreePage() {
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <div className="flex w-52 shrink-0 items-baseline gap-2">
-          <h1 className="text-lg leading-6 font-semibold text-on-surface">
-            Baumstruktur
-          </h1>
-          {!loading ? (
-            <span className="text-sm font-semibold text-on-surface-variant">
-              [{visibleRows.length}]
-            </span>
-          ) : null}
-        </div>
+        <AppTitle
+          title="Baumstruktur"
+          count={loading ? null : visibleRows.length}
+        />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 
@@ -413,7 +441,7 @@ export function AssetTreePage() {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[880px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-outline-variant text-xs font-medium tracking-wide text-on-surface-variant uppercase">
               <th className="w-14 px-3 py-3 font-medium">Bild</th>
@@ -448,6 +476,13 @@ export function AssetTreePage() {
               <SortableHeader
                 label="Hersteller"
                 column="manufacturer"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={toggleSort}
+              />
+              <SortableHeader
+                label="Dokumente"
+                column="documents"
                 activeColumn={sortColumn}
                 direction={sortDirection}
                 onSort={toggleSort}
@@ -493,18 +528,25 @@ export function AssetTreePage() {
                   onChange={(value) => setFilter("manufacturer", value)}
                 />
               </th>
+              <th className="px-3 py-2 font-normal">
+                <ColumnFilterInput
+                  label="Dokumente filtern"
+                  value={filters.documents}
+                  onChange={(value) => setFilter("documents", value)}
+                />
+              </th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-on-surface-variant">
+                <td colSpan={7} className="px-3 py-8 text-on-surface-variant">
                   Laden…
                 </td>
               </tr>
             ) : visibleRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-on-surface-variant">
+                <td colSpan={7} className="px-3 py-8 text-on-surface-variant">
                   {emptyMessage}
                 </td>
               </tr>
@@ -512,6 +554,7 @@ export function AssetTreePage() {
               visibleRows.map((row, index) => {
                 const isSelected = selectedKeys.has(row.asset.key);
                 const isExpanded = effectiveExpanded.has(row.asset.key);
+                const docCount = documentCounts[row.asset.key] ?? 0;
                 return (
                   <tr
                     key={row.asset.key}
@@ -574,6 +617,9 @@ export function AssetTreePage() {
                     <td className="px-3 py-3">
                       {displayOptional(row.asset.manufacturer)}
                     </td>
+                    <td className="px-3 py-3">
+                      <DocumentCountCell count={docCount} />
+                    </td>
                   </tr>
                 );
               })
@@ -602,6 +648,21 @@ function AssetThumbnail(props: { src: string | null; alt: string }) {
       alt={props.alt}
       className="h-10 w-10 rounded border border-outline-variant/70 object-cover"
     />
+  );
+}
+
+function DocumentCountCell(props: { count: number }) {
+  if (props.count <= 0) {
+    return <span aria-label="Keine Dokumente">—</span>;
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-on-surface"
+      title={`${props.count} Dokumente`}
+    >
+      <IconPaperclip size={16} stroke={1.75} aria-hidden />
+      <span className="text-sm font-semibold">{props.count}</span>
+    </span>
   );
 }
 

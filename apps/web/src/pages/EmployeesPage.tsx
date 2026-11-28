@@ -14,6 +14,7 @@ import {
   type MouseEvent,
 } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import {
   matchesAnyField,
@@ -244,16 +245,10 @@ export function EmployeesPage() {
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <div className="flex w-52 shrink-0 items-baseline gap-2">
-          <h1 className="text-lg leading-6 font-semibold text-on-surface">
-            Mitarbeiter
-          </h1>
-          {!loading ? (
-            <span className="text-sm font-semibold text-on-surface-variant">
-              [{visibleEmployees.length}]
-            </span>
-          ) : null}
-        </div>
+        <AppTitle
+          title="Mitarbeiter"
+          count={loading ? null : visibleEmployees.length}
+        />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 

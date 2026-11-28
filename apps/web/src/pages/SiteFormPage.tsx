@@ -1,12 +1,11 @@
-import {
-  IconBuilding,
-  IconDeviceFloppy,
-  IconPalette,
-  IconX,
-} from "@tabler/icons-react";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { IconBuilding, IconPalette, IconX } from "@tabler/icons-react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FloatingField } from "../components/FloatingField";
+import { FormSection } from "../components/FormSection";
+import { MiscFormSection } from "../components/MiscFormSection";
+import { SaveButtonGroup } from "../components/SaveButtonGroup";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import { syncStoredUserSites } from "../lib/auth";
 import { SearchableField, useRegisterGlobalSearch } from "../lib/globalSearch";
@@ -20,6 +19,7 @@ import {
 
 type Mode = "create" | "edit";
 
+const FORM_ID = "site-form";
 const DEFAULT_COLOR = "#2563EB";
 const HEX_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 
@@ -34,10 +34,12 @@ export function SiteFormPage() {
   useRegisterGlobalSearch("ep");
   const { key: routeKey } = useParams<{ key: string }>();
   const mode: Mode = routeKey ? "edit" : "create";
+  const closeAfterSaveRef = useRef(false);
 
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [colorCode, setColorCode] = useState(DEFAULT_COLOR);
+  const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function SiteFormPage() {
         const site = await getSite(routeKey);
         if (cancelled) return;
         setOriginalKey(site.key);
+        setUid(site.uid);
         setKey(site.key);
         setName(site.name);
         setColorCode(site.colorCode);
@@ -88,6 +91,14 @@ export function SiteFormPage() {
     navigate("/sites", { viewTransition: true });
   }, [navigate]);
 
+  const requestSaveAndClose = useCallback(() => {
+    closeAfterSaveRef.current = true;
+    const form = document.getElementById(FORM_ID);
+    if (form instanceof HTMLFormElement) {
+      form.requestSubmit();
+    }
+  }, []);
+
   function onColorPickerChange(value: string) {
     setColorCode(value.toUpperCase());
   }
@@ -98,6 +109,8 @@ export function SiteFormPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const shouldClose = closeAfterSaveRef.current;
+    closeAfterSaveRef.current = false;
     setError(null);
 
     const normalizedColor = colorCode.trim().toUpperCase();
@@ -122,11 +135,33 @@ export function SiteFormPage() {
           : await updateSite(previousKey, payload);
 
       if (mode === "edit") {
-        syncStoredUserSites(saved, previousKey);
+        syncStoredUserSites(
+          {
+            key: saved.key,
+            name: saved.name,
+            colorCode: saved.colorCode,
+          },
+          previousKey,
+        );
       }
 
-      setPanelTransitionDirection("back");
-      navigate("/sites", { replace: true, viewTransition: true });
+      if (shouldClose) {
+        setPanelTransitionDirection("back");
+        navigate("/sites", { replace: true, viewTransition: true });
+        return;
+      }
+
+      setOriginalKey(saved.key);
+      setUid(saved.uid);
+      setKey(saved.key);
+      setName(saved.name);
+      setColorCode(saved.colorCode);
+
+      if (mode === "create" || previousKey !== saved.key) {
+        navigate(`/sites/${encodeURIComponent(saved.key)}/edit`, {
+          replace: true,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof SitesApiError
@@ -146,9 +181,7 @@ export function SiteFormPage() {
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <h1 className="w-52 shrink-0 truncate text-lg leading-6 font-semibold text-on-surface">
-          {pageTitle}
-        </h1>
+        <AppTitle title={pageTitle} />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 
@@ -174,15 +207,12 @@ export function SiteFormPage() {
         >
           {() => (
             <>
-              <button
-                type="submit"
-                form="site-form"
-                disabled={loading || submitting}
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-primary bg-primary px-3 text-sm font-semibold text-on-primary transition-colors hover:border-primary-container hover:bg-primary-container disabled:pointer-events-none disabled:opacity-50"
-              >
-                <IconDeviceFloppy size={18} stroke={1.75} />
-                {submitting ? "Speichern…" : "Speichern"}
-              </button>
+              <SaveButtonGroup
+                formId={FORM_ID}
+                disabled={loading}
+                submitting={submitting}
+                onSaveAndClose={requestSaveAndClose}
+              />
 
               <button
                 type="button"
@@ -202,21 +232,15 @@ export function SiteFormPage() {
         <p className="mt-8 px-3 text-sm text-on-surface-variant">Laden…</p>
       ) : (
         <form
-          id="site-form"
+          id={FORM_ID}
           className="mt-8 flex w-full flex-col gap-8 px-3"
           onSubmit={onSubmit}
         >
-          <section
-            aria-labelledby="site-base-heading"
-            className="flex flex-col gap-4"
+          <FormSection
+            headingId="site-base-heading"
+            title="Basis Informationen"
+            icon={IconBuilding}
           >
-            <h2
-              id="site-base-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconBuilding size={18} stroke={1.75} className="text-primary" />
-              Basis Informationen
-            </h2>
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field
                 id="site-key"
@@ -235,54 +259,46 @@ export function SiteFormPage() {
                 autoComplete="organization"
               />
             </div>
-          </section>
+          </FormSection>
 
-          <section
-            aria-labelledby="site-misc-heading"
-            className="flex flex-col gap-4"
+          <MiscFormSection
+            headingId="site-misc-heading"
+            uid={uid}
+            icon={IconPalette}
           >
-            <h2
-              id="site-misc-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconPalette size={18} stroke={1.75} className="text-primary" />
-              Sonstiges
-            </h2>
-            <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <SearchableField texts={["Farbcode", colorCode]}>
-                <div>
-                  <span className="mb-1.5 block text-xs font-medium leading-4 text-on-surface-variant">
-                    Farbcode
-                    <span className="ml-0.5 text-error" aria-hidden>
-                      *
-                    </span>
+            <SearchableField texts={["Farbcode", colorCode]}>
+              <div>
+                <span className="mb-1.5 block text-xs font-medium leading-4 text-on-surface-variant">
+                  Farbcode
+                  <span className="ml-0.5 text-error" aria-hidden>
+                    *
                   </span>
-                  <div className="flex items-center gap-3">
-                    <input
-                      id="site-color-picker"
-                      type="color"
-                      value={pickerValue}
-                      onChange={(event) =>
-                        onColorPickerChange(event.target.value)
-                      }
-                      required
-                      aria-label="Farbe wählen"
-                      className="h-11 w-14 shrink-0 cursor-pointer rounded border border-error/60 bg-surface-container-lowest p-1 focus:border-error focus:ring-1 focus:ring-error focus:outline-none"
-                    />
-                    <FloatingField
-                      id="site-color-hex"
-                      label="Hex"
-                      value={colorCode}
-                      onChange={onHexChange}
-                      required
-                      autoComplete="off"
-                      inputClassName="font-mono uppercase"
-                    />
-                  </div>
+                </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="site-color-picker"
+                    type="color"
+                    value={pickerValue}
+                    onChange={(event) =>
+                      onColorPickerChange(event.target.value)
+                    }
+                    required
+                    aria-label="Farbe wählen"
+                    className="h-11 w-14 shrink-0 cursor-pointer rounded border border-error/60 bg-surface-container-lowest p-1 focus:border-error focus:ring-1 focus:ring-error focus:outline-none"
+                  />
+                  <FloatingField
+                    id="site-color-hex"
+                    label="Hex"
+                    value={colorCode}
+                    onChange={onHexChange}
+                    required
+                    autoComplete="off"
+                    inputClassName="font-mono uppercase"
+                  />
                 </div>
-              </SearchableField>
-            </div>
-          </section>
+              </div>
+            </SearchableField>
+          </MiscFormSection>
         </form>
       )}
     </div>

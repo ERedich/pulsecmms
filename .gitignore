@@ -18,3 +18,4 @@ Thumbs.db
 apps/mobile/.expo
 apps/web/dist
 apps/api/uploads
+apps/api/doc

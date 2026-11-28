@@ -1,7 +1,7 @@
 import type { AuthUser, EmployeeRef, SiteRef } from "./auth";
 import { getAccessToken } from "./auth";
 
-export type ManagedUser = AuthUser;
+export type ManagedUser = AuthUser & { uid: string };
 
 export type EmployeeOption = EmployeeRef & {
   assignedUserKey: string | null;

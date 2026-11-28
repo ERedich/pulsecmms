@@ -83,6 +83,7 @@ export function parentIsRequired(type: AssetType): boolean {
 }
 
 export type ManagedAsset = {
+  uid: string;
   key: string;
   type: AssetType;
   parentKey: string | null;

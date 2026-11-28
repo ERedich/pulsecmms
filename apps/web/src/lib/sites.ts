@@ -1,6 +1,7 @@
 import { getAccessToken } from "./auth";
 
 export type ManagedSite = {
+  uid: string;
   key: string;
   name: string;
   colorCode: string;

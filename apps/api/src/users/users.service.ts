@@ -55,6 +55,7 @@ type EmployeeDbRef = {
 };
 
 export type UserPublic = {
+  uid: string;
   key: string;
   loginName: string;
   firstName: string;
@@ -64,6 +65,9 @@ export type UserPublic = {
   secondarySites: SiteRef[];
   employee: EmployeeRef | null;
 };
+
+/** Auth session payload — no uid. */
+export type AuthUserPublic = Omit<UserPublic, "uid">;
 
 const USER_COLUMNS =
   "uid, key, fk_site, fk_employee, login_name, first_name, last_name, email, password_hash";
@@ -533,6 +537,7 @@ export class UsersService {
     }
 
     return {
+      uid: user.uid,
       key: user.key,
       loginName: user.login_name,
       firstName: user.first_name ?? "",
@@ -542,5 +547,10 @@ export class UsersService {
       secondarySites: secondary.rows.map((row) => this.toSiteRef(row)),
       employee,
     };
+  }
+
+  toAuthPublic(user: UserPublic): AuthUserPublic {
+    const { uid: _uid, ...authUser } = user;
+    return authUser;
   }
 }

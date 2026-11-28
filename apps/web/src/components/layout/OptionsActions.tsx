@@ -78,7 +78,7 @@ export function OptionsActions({
           <div
             id={menuId}
             role="menu"
-            className="absolute top-full right-0 z-50 mt-1.5 min-w-44 rounded border border-outline-variant bg-surface p-1.5 shadow-md [&_a]:w-full [&_a]:justify-start [&_button]:w-full [&_button]:justify-start"
+            className="absolute top-full right-0 z-50 mt-1.5 min-w-44 rounded border border-outline-variant bg-surface p-1.5 shadow-md [&>div>a]:w-full [&>div>a]:justify-start [&>div>button]:w-full [&>div>button]:justify-start"
           >
             <div
               className="flex flex-col gap-1"

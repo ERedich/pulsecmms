@@ -1,8 +1,8 @@
 import {
   IconBox,
-  IconBuilding,
-  IconDeviceFloppy,
   IconLink,
+  IconPaperclip,
+  IconPhoto,
   IconTrash,
   IconUpload,
   IconX,
@@ -14,10 +14,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Combobox } from "../components/Combobox";
+import { DocumentFileGlyph } from "../components/DocumentFileGlyph";
+import { DocumentImageLightbox } from "../components/DocumentImageLightbox";
 import { FloatingField } from "../components/FloatingField";
+import { FormSection } from "../components/FormSection";
+import { MiscFormSection } from "../components/MiscFormSection";
+import { SaveButtonGroup } from "../components/SaveButtonGroup";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import {
   ASSET_TYPES,
@@ -25,7 +32,6 @@ import {
   ASSET_TYPE_META,
   AssetsApiError,
   assetTypeLabel,
-  assetTypeMeta,
   canHostAssetType,
   createAsset,
   deleteAssetThumbnail,
@@ -43,10 +49,21 @@ import {
   listCostCenters,
   type ManagedCostCenter,
 } from "../lib/costCenters";
+import {
+  DocumentsApiError,
+  documentKind,
+  formatDocumentSize,
+  listDocuments,
+  openDocument,
+  uploadDocuments,
+  type ManagedDocument,
+} from "../lib/documents";
 import { SearchableField, useRegisterGlobalSearch } from "../lib/globalSearch";
 import { setPanelTransitionDirection } from "../lib/panelTransition";
 
 type Mode = "create" | "edit";
+
+const FORM_ID = "asset-form";
 
 type AssetFormLocationState = {
   returnTo?: string;
@@ -73,6 +90,7 @@ export function AssetFormPage() {
   const mode: Mode = routeKey ? "edit" : "create";
   const currentUser = getStoredUser();
   const returnPath = resolveReturnPath(location.state);
+  const closeAfterSaveRef = useRef(false);
 
   const [key, setKey] = useState("");
   const [type, setType] = useState<AssetType>("location");
@@ -80,6 +98,7 @@ export function AssetFormPage() {
   const [costCenterKey, setCostCenterKey] = useState("");
   const [serialNumber, setSerialNumber] = useState("");
   const [manufacturer, setManufacturer] = useState("");
+  const [uid, setUid] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [pendingThumbnail, setPendingThumbnail] = useState<File | null>(null);
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(
@@ -97,6 +116,22 @@ export function AssetFormPage() {
   const [originalKey, setOriginalKey] = useState<string | null>(
     routeKey ?? null,
   );
+  const [documents, setDocuments] = useState<ManagedDocument[]>([]);
+  const [documentsBusy, setDocumentsBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{
+    url: string;
+    name: string;
+  } | null>(null);
+  const dragDepthRef = useRef(0);
+
+  const documentCount = documents.length;
+
+  const refreshDocuments = useCallback(async (assetKey: string) => {
+    const docs = await listDocuments({ app: "assets", recordKey: assetKey });
+    docs.sort((a, b) => a.name.localeCompare(b.name, "de"));
+    setDocuments(docs);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +152,7 @@ export function AssetFormPage() {
           const asset = await getAsset(routeKey);
           if (cancelled) return;
           setOriginalKey(asset.key);
+          setUid(asset.uid);
           setKey(asset.key);
           setType(asset.type);
           setParentKey(asset.parentKey ?? "");
@@ -125,6 +161,19 @@ export function AssetFormPage() {
           setManufacturer(asset.manufacturer ?? "");
           setThumbnailUrl(asset.thumbnailUrl);
           setPendingThumbnail(null);
+
+          try {
+            const docs = await listDocuments({
+              app: "assets",
+              recordKey: asset.key,
+            });
+            docs.sort((a, b) => a.name.localeCompare(b.name, "de"));
+            if (!cancelled) setDocuments(docs);
+          } catch {
+            if (!cancelled) setDocuments([]);
+          }
+        } else if (!cancelled) {
+          setDocuments([]);
         }
       } catch (err) {
         if (!cancelled) {
@@ -191,25 +240,6 @@ export function AssetFormPage() {
     [],
   );
 
-  const parentOptions = useMemo(() => {
-    return assetOptions
-      .filter(
-        (item) =>
-          item.key !== (originalKey ?? undefined) &&
-          canHostAssetType(item.type, type),
-      )
-      .map((item) => {
-        const meta = assetTypeMeta(item.type);
-        return {
-          value: item.key,
-          label: `${item.key} — ${meta.label}`,
-          keywords: [item.key, meta.label],
-          color: meta.color,
-          icon: meta.icon,
-        };
-      });
-  }, [assetOptions, originalKey, type]);
-
   const costCenterComboboxOptions = useMemo(
     () =>
       costCenterOptions.map((item) => ({
@@ -224,6 +254,114 @@ export function AssetFormPage() {
     setPanelTransitionDirection("back");
     navigate(returnPath, { viewTransition: true });
   }, [navigate, returnPath]);
+
+  const requestSaveAndClose = useCallback(() => {
+    closeAfterSaveRef.current = true;
+    const form = document.getElementById(FORM_ID);
+    if (form instanceof HTMLFormElement) {
+      form.requestSubmit();
+    }
+  }, []);
+
+  const openDocuments = useCallback(() => {
+    if (!originalKey) return;
+    setPanelTransitionDirection("forward");
+    navigate(`/documents/assets/${encodeURIComponent(originalKey)}`, {
+      viewTransition: true,
+      state: {
+        returnTo: `${location.pathname}${location.search}`,
+        returnState: location.state,
+      },
+    });
+  }, [location.pathname, location.search, location.state, navigate, originalKey]);
+
+  const closeImagePreview = useCallback(() => {
+    setImagePreview((current) => {
+      if (current) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
+
+  const openDocumentFile = useCallback(
+    async (doc: ManagedDocument) => {
+      setError(null);
+      try {
+        const result = await openDocument(doc.app, doc.recordKey, doc.name);
+        if (result.kind === "image") {
+          setImagePreview((current) => {
+            if (current) URL.revokeObjectURL(current.url);
+            return { url: result.url, name: result.name };
+          });
+        }
+      } catch (err) {
+        setError(
+          err instanceof DocumentsApiError
+            ? err.message
+            : "Dokument konnte nicht geöffnet werden",
+        );
+      }
+    },
+    [],
+  );
+
+  const uploadDroppedFiles = useCallback(
+    async (files: File[]) => {
+      if (!originalKey || files.length === 0) return;
+      setDocumentsBusy(true);
+      setError(null);
+      try {
+        await uploadDocuments("assets", originalKey, files);
+        await refreshDocuments(originalKey);
+      } catch (err) {
+        setError(
+          err instanceof DocumentsApiError
+            ? err.message
+            : "Dokumente konnten nicht hochgeladen werden",
+        );
+      } finally {
+        setDocumentsBusy(false);
+      }
+    },
+    [originalKey, refreshDocuments],
+  );
+
+  const onDocumentDragEnter = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.dataTransfer.types.includes("Files")) return;
+    dragDepthRef.current += 1;
+    setDragActive(true);
+  }, []);
+
+  const onDocumentDragLeave = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setDragActive(false);
+    }
+  }, []);
+
+  const onDocumentDragOver = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer.types.includes("Files")) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const onDocumentDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      dragDepthRef.current = 0;
+      setDragActive(false);
+      if (documentsBusy || submitting) return;
+      const files = Array.from(event.dataTransfer.files);
+      void uploadDroppedFiles(files);
+    },
+    [documentsBusy, submitting, uploadDroppedFiles],
+  );
 
   async function onPickThumbnail(file: File | null) {
     if (!file) return;
@@ -284,6 +422,8 @@ export function AssetFormPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const shouldClose = closeAfterSaveRef.current;
+    closeAfterSaveRef.current = false;
     setError(null);
     setSubmitting(true);
 
@@ -298,22 +438,39 @@ export function AssetFormPage() {
       };
 
       const previousKey = originalKey ?? routeKey ?? payload.key;
-      let savedKey = payload.key;
-      if (mode === "create") {
-        const created = await createAsset(payload);
-        savedKey = created.key;
-        if (pendingThumbnail) {
-          await uploadAssetThumbnail(savedKey, pendingThumbnail);
-        }
-      } else {
-        await updateAsset(previousKey, payload);
-        if (pendingThumbnail) {
-          await uploadAssetThumbnail(previousKey, pendingThumbnail);
-        }
+      let saved =
+        mode === "create"
+          ? await createAsset(payload)
+          : await updateAsset(previousKey, payload);
+
+      if (pendingThumbnail) {
+        saved = await uploadAssetThumbnail(saved.key, pendingThumbnail);
+        setPendingThumbnail(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
 
-      setPanelTransitionDirection("back");
-      navigate(returnPath, { replace: true, viewTransition: true });
+      if (shouldClose) {
+        setPanelTransitionDirection("back");
+        navigate(returnPath, { replace: true, viewTransition: true });
+        return;
+      }
+
+      setOriginalKey(saved.key);
+      setUid(saved.uid);
+      setKey(saved.key);
+      setType(saved.type);
+      setParentKey(saved.parentKey ?? "");
+      setCostCenterKey(saved.costCenterKey);
+      setSerialNumber(saved.serialNumber ?? "");
+      setManufacturer(saved.manufacturer ?? "");
+      setThumbnailUrl(saved.thumbnailUrl);
+
+      if (mode === "create" || previousKey !== saved.key) {
+        navigate(`/assets/${encodeURIComponent(saved.key)}/edit`, {
+          replace: true,
+          state: location.state,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof AssetsApiError
@@ -325,19 +482,13 @@ export function AssetFormPage() {
     }
   }
 
-  const primaryLabel = currentUser
-    ? `${currentUser.primarySite.key} — ${currentUser.primarySite.name}`
-    : "—";
-
   const pageTitle =
     mode === "create" ? "Asset anlegen" : "Asset bearbeiten";
 
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <h1 className="w-52 shrink-0 truncate text-lg leading-6 font-semibold text-on-surface">
-          {pageTitle}
-        </h1>
+        <AppTitle title={pageTitle} />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 
@@ -363,15 +514,37 @@ export function AssetFormPage() {
         >
           {() => (
             <>
-              <button
-                type="submit"
-                form="asset-form"
-                disabled={loading || submitting || thumbnailBusy}
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-primary bg-primary px-3 text-sm font-semibold text-on-primary transition-colors hover:border-primary-container hover:bg-primary-container disabled:pointer-events-none disabled:opacity-50"
-              >
-                <IconDeviceFloppy size={18} stroke={1.75} />
-                {submitting ? "Speichern…" : "Speichern"}
-              </button>
+              <SaveButtonGroup
+                formId={FORM_ID}
+                disabled={loading || thumbnailBusy}
+                submitting={submitting}
+                onSaveAndClose={requestSaveAndClose}
+              />
+
+              {mode === "edit" && originalKey ? (
+                <button
+                  type="button"
+                  onClick={openDocuments}
+                  disabled={loading || submitting || thumbnailBusy}
+                  className="inline-flex h-9 items-center gap-1.5 rounded border border-outline-variant bg-surface px-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <IconPaperclip size={18} stroke={1.75} />
+                  Dokumente
+                  <span
+                    className={[
+                      "grid transition-[grid-template-columns] duration-200 ease-out motion-reduce:transition-none",
+                      documentCount > 0 ? "grid-cols-[1fr]" : "grid-cols-[0fr]",
+                    ].join(" ")}
+                    aria-hidden={documentCount === 0}
+                  >
+                    <span className="min-w-0 overflow-hidden">
+                      <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded bg-surface-container-high px-1 text-[10px] leading-4 font-semibold text-on-surface-variant">
+                        {documentCount > 0 ? documentCount : "\u00a0"}
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              ) : null}
 
               <button
                 type="button"
@@ -391,26 +564,18 @@ export function AssetFormPage() {
         <p className="mt-8 px-3 text-sm text-on-surface-variant">Laden…</p>
       ) : (
         <form
-          id="asset-form"
+          id={FORM_ID}
           className="mt-8 flex w-full flex-col gap-8 px-3"
           onSubmit={onSubmit}
         >
-          <section
-            aria-labelledby="asset-base-heading"
-            className="flex flex-col gap-4"
-          >
-            <h2
-              id="asset-base-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+            <FormSection
+              headingId="asset-thumbnail-heading"
+              title="Thumbnail"
+              icon={IconPhoto}
+              className="w-full shrink-0 lg:w-64"
             >
-              <IconBox size={18} stroke={1.75} className="text-primary" />
-              Basis Informationen
-            </h2>
-            <div className="flex w-full flex-col gap-5 lg:flex-row lg:items-start">
-              <SearchableField
-                texts={["Thumbnail", "Bild"]}
-                className="w-full shrink-0 lg:w-44"
-              >
+              <SearchableField texts={["Thumbnail", "Bild"]} className="w-full">
                 <div className="flex flex-col gap-2">
                   {previewSrc ? (
                     <img
@@ -434,115 +599,96 @@ export function AssetFormPage() {
                       void onPickThumbnail(file);
                     }}
                   />
-                  <button
-                    type="button"
-                    disabled={submitting || thumbnailBusy}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded border border-outline-variant bg-surface px-3 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <IconUpload size={18} stroke={1.75} />
-                    {thumbnailBusy ? "Laden…" : "Bild wählen"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={
-                      submitting ||
-                      thumbnailBusy ||
-                      (!previewSrc && !pendingThumbnail)
-                    }
-                    onClick={() => void onClearThumbnail()}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded border border-error/40 bg-surface px-3 text-sm font-semibold text-error transition-colors hover:bg-error-container/40 disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    <IconTrash size={18} stroke={1.75} />
-                    Entfernen
-                  </button>
+                  <div className="flex h-9 w-full overflow-hidden rounded border border-outline-variant bg-surface">
+                    <button
+                      type="button"
+                      disabled={submitting || thumbnailBusy}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex h-full min-w-0 flex-1 items-center justify-center gap-1.5 px-3 text-sm font-semibold whitespace-nowrap text-on-surface transition-colors hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <IconUpload size={18} stroke={1.75} className="shrink-0" />
+                      {thumbnailBusy ? "Laden…" : "Bild wählen"}
+                    </button>
+                    <span
+                      className="my-1.5 w-px shrink-0 bg-outline-variant"
+                      aria-hidden
+                    />
+                    <button
+                      type="button"
+                      disabled={
+                        submitting ||
+                        thumbnailBusy ||
+                        (!previewSrc && !pendingThumbnail)
+                      }
+                      onClick={() => void onClearThumbnail()}
+                      className="inline-flex h-full shrink-0 items-center justify-center gap-1.5 px-3 text-sm font-semibold whitespace-nowrap text-error transition-colors hover:bg-error-container/40 disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <IconTrash size={18} stroke={1.75} className="shrink-0" />
+                      Entfernen
+                    </button>
+                  </div>
                   <p className="text-xs text-on-surface-variant">
                     JPEG, PNG oder WebP, max. 2 MB
                   </p>
                 </div>
               </SearchableField>
+            </FormSection>
 
-              <div className="grid min-w-0 flex-1 grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                <Field
-                  id="asset-key"
-                  label="Schlüssel"
-                  value={key}
-                  onChange={setKey}
-                  required
-                  autoComplete="off"
-                />
-                <SearchableField
-                  texts={[
-                    "Typ",
-                    assetTypeLabel(type),
-                    ...ASSET_TYPES.map((value) => ASSET_TYPE_LABELS[value]),
-                  ]}
-                >
-                  <Combobox
-                    id="asset-type"
-                    label="Typ"
-                    value={type}
-                    onChange={(value) => setType(value as AssetType)}
-                    options={typeOptions}
-                    required
-                  />
-                </SearchableField>
-                <Field
-                  id="asset-serial-number"
-                  label="Seriennummer"
-                  value={serialNumber}
-                  onChange={setSerialNumber}
-                  autoComplete="off"
-                />
-                <Field
-                  id="asset-manufacturer"
-                  label="Hersteller"
-                  value={manufacturer}
-                  onChange={setManufacturer}
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section
-            aria-labelledby="asset-references-heading"
-            className="flex flex-col gap-4"
-          >
-            <h2
-              id="asset-references-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
+            <FormSection
+              headingId="asset-base-heading"
+              title="Basis Informationen"
+              icon={IconBox}
+              className="min-w-0 flex-1"
             >
-              <IconLink size={18} stroke={1.75} className="text-primary" />
-              Referenzen
-            </h2>
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <Field
+                id="asset-key"
+                label="Schlüssel"
+                value={key}
+                onChange={setKey}
+                required
+                autoComplete="off"
+              />
               <SearchableField
                 texts={[
                   "Typ",
-                  parentKey,
-                  ...parentOptions.flatMap((option) => [
-                    option.value,
-                    option.label,
-                  ]),
+                  assetTypeLabel(type),
+                  ...ASSET_TYPES.map((value) => ASSET_TYPE_LABELS[value]),
                 ]}
               >
                 <Combobox
-                  id="asset-parent"
+                  id="asset-type"
                   label="Typ"
-                  value={parentKey}
-                  onChange={setParentKey}
-                  options={parentOptions}
-                  required={parentRequired}
-                  emptyText={
-                    parentOptions.length === 0
-                      ? parentRequired
-                        ? "Keine passenden Eltern-Assets verfügbar."
-                        : "Kein Typ möglich."
-                      : "Keine Treffer"
-                  }
+                  value={type}
+                  onChange={(value) => setType(value as AssetType)}
+                  options={typeOptions}
+                  required
                 />
               </SearchableField>
+              <Field
+                id="asset-serial-number"
+                label="Seriennummer"
+                value={serialNumber}
+                onChange={setSerialNumber}
+                autoComplete="off"
+              />
+              <Field
+                id="asset-manufacturer"
+                label="Hersteller"
+                value={manufacturer}
+                onChange={setManufacturer}
+                autoComplete="off"
+              />
+            </div>
+            </FormSection>
+          </div>
+
+          <FormSection
+            headingId="asset-references-heading"
+            title="Referenzen"
+            icon={IconLink}
+          >
+            <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <SearchableField
                 texts={[
                   "Kostenstelle",
@@ -565,36 +711,101 @@ export function AssetFormPage() {
                 />
               </SearchableField>
             </div>
-          </section>
+          </FormSection>
 
-          <section
-            aria-labelledby="asset-site-heading"
-            className="flex flex-col gap-4"
-          >
-            <h2
-              id="asset-site-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
+          {mode === "edit" && originalKey ? (
+            <FormSection
+              headingId="asset-documents-heading"
+              title={
+                <>
+                  Dokumente
+                  <span className="normal-case tracking-normal text-on-surface-variant">
+                    {" "}
+                    [{documentCount}]
+                  </span>
+                  {documentsBusy ? (
+                    <span className="normal-case tracking-normal text-on-surface-variant">
+                      {" "}
+                      · Hochladen…
+                    </span>
+                  ) : null}
+                </>
+              }
+              icon={IconPaperclip}
+              defaultOpen={false}
+              className={[
+                "rounded border border-transparent p-1 -m-1 transition-colors",
+                dragActive
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onDragEnter={onDocumentDragEnter}
+              onDragLeave={onDocumentDragLeave}
+              onDragOver={onDocumentDragOver}
+              onDrop={onDocumentDrop}
             >
-              <IconBuilding
-                size={18}
-                stroke={1.75}
-                className="text-primary"
-              />
-              Mandant
-            </h2>
-            <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <SearchableField texts={["Mandant", primaryLabel]}>
-                <span className="mb-1.5 block text-xs font-medium leading-4 text-on-surface-variant">
-                  Mandant
-                </span>
-                <p className="rounded border border-outline-variant/70 bg-surface-container-low px-3.5 py-2.5 text-sm text-on-surface">
-                  {primaryLabel}
+              {documents.length === 0 ? (
+                <p className="px-1 py-6 text-center text-sm text-on-surface-variant">
+                  Keine Dokumente — Dateien hierher ziehen.
                 </p>
-              </SearchableField>
-            </div>
-          </section>
+              ) : (
+                <ul className="flex flex-col divide-y divide-outline-variant/70 border-y border-outline-variant/70">
+                  {documents.map((doc) => (
+                    <li key={doc.name}>
+                      <SearchableField
+                        texts={[
+                          "Dokumente",
+                          doc.name,
+                          documentKind(doc.name),
+                          formatDocumentSize(doc.size),
+                        ]}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void openDocumentFile(doc)}
+                          disabled={documentsBusy || submitting}
+                          className="flex w-full items-center gap-3 px-1 py-2.5 text-left text-sm text-on-surface transition-colors hover:bg-surface-container-low disabled:pointer-events-none disabled:opacity-50"
+                        >
+                          <DocumentFileGlyph
+                            app={doc.app}
+                            recordKey={doc.recordKey}
+                            name={doc.name}
+                          />
+                          <span className="min-w-0 flex-1 truncate font-semibold">
+                            {doc.name}
+                          </span>
+                          <span className="shrink-0 text-on-surface-variant">
+                            {documentKind(doc.name)}
+                          </span>
+                          <span className="w-20 shrink-0 text-right text-on-surface-variant">
+                            {formatDocumentSize(doc.size)}
+                          </span>
+                        </button>
+                      </SearchableField>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </FormSection>
+          ) : null}
+
+          <MiscFormSection
+            headingId="asset-misc-heading"
+            uid={uid}
+            site={currentUser?.primarySite ?? null}
+          />
         </form>
       )}
+
+      {imagePreview ? (
+        <DocumentImageLightbox
+          url={imagePreview.url}
+          name={imagePreview.name}
+          onClose={closeImagePreview}
+        />
+      ) : null}
     </div>
   );
 }

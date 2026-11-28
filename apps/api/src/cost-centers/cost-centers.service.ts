@@ -15,6 +15,7 @@ export type CostCenterRow = {
 };
 
 export type CostCenterPublic = {
+  uid: string;
   key: string;
   name: string;
 };
@@ -130,6 +131,7 @@ export class CostCentersService {
 
   private toPublic(costCenter: CostCenterRow): CostCenterPublic {
     return {
+      uid: costCenter.uid,
       key: costCenter.key,
       name: costCenter.name,
     };

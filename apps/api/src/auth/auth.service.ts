@@ -24,10 +24,11 @@ export class AuthService {
     }
 
     const publicUser = await this.users.toPublic(user);
+    const authUser = this.users.toAuthPublic(publicUser);
     const payload: JwtPayload = {
       sub: user.uid,
       siteUid: user.fk_site,
-      siteKey: publicUser.primarySite.key,
+      siteKey: authUser.primarySite.key,
     };
 
     const expiresIn = dto.rememberMe ? "30d" : "8h";
@@ -35,7 +36,7 @@ export class AuthService {
 
     return {
       accessToken,
-      user: publicUser,
+      user: authUser,
     };
   }
 
@@ -44,6 +45,6 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException();
     }
-    return this.users.toPublic(user);
+    return this.users.toAuthPublic(await this.users.toPublic(user));
   }
 }

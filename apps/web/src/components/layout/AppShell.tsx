@@ -8,6 +8,8 @@ import {
   type AuthUser,
 } from "../../lib/auth";
 import { GlobalSearchProvider } from "../../lib/globalSearch";
+import { AiChatPanel } from "../ai/AiChatPanel";
+import { BackNavigationProvider } from "./backNavigation";
 import { Sidebar } from "./Sidebar";
 import { TopNavbar } from "./TopNavbar";
 
@@ -15,6 +17,7 @@ export function AppShell() {
   const token = getAccessToken();
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   useEffect(() => {
     function onUserUpdated() {
@@ -58,34 +61,45 @@ export function AppShell() {
 
   return (
     <GlobalSearchProvider>
-      <div className="min-h-screen bg-background font-sans text-on-surface antialiased">
-        {sidebarOpen ? (
-          <button
-            type="button"
-            aria-label="Navigation schließen"
-            className="fixed inset-0 z-[99] bg-black/40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        ) : null}
+      <BackNavigationProvider>
+        <div className="min-h-screen bg-background font-sans text-on-surface antialiased">
+          {sidebarOpen ? (
+            <button
+              type="button"
+              aria-label="Navigation schließen"
+              className="fixed inset-0 z-[99] bg-black/40 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          ) : null}
 
-        <Sidebar
-          user={user}
-          open={sidebarOpen}
-          onNavigate={() => setSidebarOpen(false)}
-        />
-
-        <div className="relative z-0 flex min-h-screen flex-col pl-0 lg:pl-72">
-          <TopNavbar
-            sidebarOpen={sidebarOpen}
-            onToggleSidebar={() => setSidebarOpen((value) => !value)}
+          <Sidebar
+            user={user}
+            open={sidebarOpen}
+            onNavigate={() => setSidebarOpen(false)}
+            onOpenAi={() => {
+              setSidebarOpen(false);
+              setAiChatOpen(true);
+            }}
           />
-          <main className="w-full flex-1 bg-background">
-            <div className="w-full pb-20">
-              <Outlet />
-            </div>
-          </main>
+
+          <div className="relative z-0 flex min-h-screen flex-col pl-0 lg:pl-72">
+            <TopNavbar
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((value) => !value)}
+            />
+            <main className="w-full flex-1 bg-background">
+              <div className="w-full pb-20">
+                <Outlet />
+              </div>
+            </main>
+          </div>
+
+          <AiChatPanel
+            open={aiChatOpen}
+            onClose={() => setAiChatOpen(false)}
+          />
         </div>
-      </div>
+      </BackNavigationProvider>
     </GlobalSearchProvider>
   );
 }

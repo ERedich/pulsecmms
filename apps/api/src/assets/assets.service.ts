@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { DbService, type DbClient } from "../db/db.service";
+import { removeRecordDocumentsDir } from "../documents/document.storage";
 import {
   ASSET_THUMBNAIL_MAX_BYTES,
   isAllowedThumbnailMime,
@@ -36,6 +37,7 @@ type AssetRow = {
 };
 
 export type AssetPublic = {
+  uid: string;
   key: string;
   type: AssetType;
   parentKey: string | null;
@@ -222,6 +224,7 @@ export class AssetsService {
 
     await this.db.query(`DELETE FROM assets WHERE uid = $1`, [asset.uid]);
     await removeAssetThumbnailFile(asset.thumbnail_path);
+    await removeRecordDocumentsDir(siteUid, "assets", asset.uid);
   }
 
   async setThumbnailForSite(
@@ -343,6 +346,7 @@ export class AssetsService {
       throw new Error(`Ungültiger Asset-Typ in der Datenbank: ${asset.type}`);
     }
     return {
+      uid: asset.uid,
       key: asset.key,
       type: asset.type,
       parentKey: asset.parent_key,

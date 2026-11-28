@@ -1,6 +1,7 @@
 import { getAccessToken } from "./auth";
 
 export type ManagedCostCenter = {
+  uid: string;
   key: string;
   name: string;
 };

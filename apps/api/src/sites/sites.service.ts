@@ -15,6 +15,7 @@ export type SiteRow = {
 };
 
 export type SitePublic = {
+  uid: string;
   key: string;
   name: string;
   colorCode: string;
@@ -129,6 +130,7 @@ export class SitesService {
 
   private toPublic(site: SiteRow): SitePublic {
     return {
+      uid: site.uid,
       key: site.key,
       name: site.name,
       colorCode: normalizeColorCode(site.color_code),
@@ -210,7 +212,15 @@ export class SitesService {
       `SELECT uid FROM assets WHERE fk_site = $1 LIMIT 1`,
       [siteUid],
     );
-    return (assets.rowCount ?? 0) > 0;
+    if ((assets.rowCount ?? 0) > 0) {
+      return true;
+    }
+
+    const settings = await this.db.query<{ uid: string }>(
+      `SELECT uid FROM settings WHERE fk_site = $1 LIMIT 1`,
+      [siteUid],
+    );
+    return (settings.rowCount ?? 0) > 0;
   }
 
   private async syncSecondaryLinkKeys(

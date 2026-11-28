@@ -6,7 +6,9 @@ type FloatingFieldBase = {
   value: string;
   required?: boolean;
   autoComplete?: string;
-  type?: "text" | "email" | "password";
+  type?: "text" | "email" | "password" | "number";
+  min?: number | string;
+  step?: number | string;
   /** Extra classes on the input (e.g. right padding for an icon button). */
   inputClassName?: string;
   /** Content absolutely positioned inside the field (e.g. show-password). */
@@ -49,6 +51,8 @@ export function FloatingField(props: FloatingFieldProps) {
           readOnly={props.readOnly}
           tabIndex={props.readOnly ? -1 : undefined}
           autoComplete={props.autoComplete}
+          min={props.type === "number" ? props.min : undefined}
+          step={props.type === "number" ? (props.step ?? "any") : undefined}
           placeholder=" "
           className={[
             "peer block w-full rounded bg-surface-container-lowest py-2.5 pl-3.5 text-sm text-on-surface focus:ring-1 focus:outline-none",

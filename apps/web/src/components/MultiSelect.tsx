@@ -1,14 +1,15 @@
 import { IconCheck, IconChevronDown, IconX } from "@tabler/icons-react";
 import {
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { tokenTone } from "../lib/tokenTone";
+import { useAnchoredListbox } from "./anchoredListbox";
 import type { ComboboxOption } from "./Combobox";
 
 type MultiSelectProps = {
@@ -73,7 +74,6 @@ export function MultiSelect(props: MultiSelectProps) {
   const [query, setQuery] = useState("");
   const [filtering, setFiltering] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [openUp, setOpenUp] = useState(false);
 
   const listId = `${props.id}-listbox`;
   const emptyText = props.emptyText ?? "Keine Treffer";
@@ -91,12 +91,7 @@ export function MultiSelect(props: MultiSelectProps) {
   const activeOptionIndex = resolveActiveIndex(visibleOptions, activeIndex);
   const floated = open || query.length > 0 || props.values.length > 0;
 
-  useLayoutEffect(() => {
-    if (!open || !rootRef.current) return;
-    const rect = rootRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setOpenUp(spaceBelow < 280 && rect.top > spaceBelow);
-  }, [open]);
+  const listbox = useAnchoredListbox(open, rootRef);
 
   useEffect(() => {
     if (!open) return;
@@ -322,17 +317,25 @@ export function MultiSelect(props: MultiSelectProps) {
           </button>
         </div>
       </div>
-      {open ? (
+      {open && listbox
+        ? createPortal(
         <ul
           id={listId}
           role="listbox"
           aria-label={props.label}
           aria-multiselectable="true"
           onMouseDown={(event) => event.preventDefault()}
-          className={[
-            "absolute right-0 left-0 z-30 max-h-60 overflow-auto overscroll-contain rounded border border-outline-variant bg-surface-container-lowest py-1 shadow-lg",
-            openUp ? "bottom-full mb-1" : "top-full mt-1",
-          ].join(" ")}
+          className="z-50 overflow-auto overscroll-contain rounded border border-outline-variant bg-surface-container-lowest py-1 shadow-lg"
+          style={{
+            position: "fixed",
+            left: listbox.left,
+            width: listbox.width,
+            maxHeight: listbox.maxHeight,
+            top: listbox.openUp ? undefined : listbox.top,
+            bottom: listbox.openUp
+              ? window.innerHeight - listbox.top
+              : undefined,
+          }}
         >
           {visibleOptions.length === 0 ? (
             <li className="px-3.5 py-2 text-sm text-on-surface-variant">
@@ -378,8 +381,10 @@ export function MultiSelect(props: MultiSelectProps) {
               );
             })
           )}
-        </ul>
-      ) : null}
+        </ul>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

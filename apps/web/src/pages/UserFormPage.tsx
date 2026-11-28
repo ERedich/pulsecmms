@@ -1,17 +1,27 @@
 import {
   IconBuilding,
-  IconDeviceFloppy,
   IconEye,
   IconEyeOff,
   IconId,
   IconLink,
   IconX,
 } from "@tabler/icons-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Combobox } from "../components/Combobox";
 import { FloatingField } from "../components/FloatingField";
+import { FormSection } from "../components/FormSection";
+import { MiscFormSection } from "../components/MiscFormSection";
 import { MultiSelect } from "../components/MultiSelect";
+import { SaveButtonGroup } from "../components/SaveButtonGroup";
+import { AppTitle } from "../components/layout/AppTitle";
 import { OptionsActions } from "../components/layout/OptionsActions";
 import {
   getStoredUser,
@@ -32,12 +42,15 @@ import {
 
 type Mode = "create" | "edit";
 
+const FORM_ID = "user-form";
+
 export function UserFormPage() {
   const navigate = useNavigate();
   useRegisterGlobalSearch("ep");
   const { key: routeKey } = useParams<{ key: string }>();
   const mode: Mode = routeKey ? "edit" : "create";
   const currentUser = getStoredUser();
+  const closeAfterSaveRef = useRef(false);
 
   const [key, setKey] = useState("");
   const [loginName, setLoginName] = useState("");
@@ -50,6 +63,7 @@ export function UserFormPage() {
   const [siteOptions, setSiteOptions] = useState<SiteRef[]>([]);
   const [employeeKey, setEmployeeKey] = useState<string>("");
   const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
+  const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +89,7 @@ export function UserFormPage() {
           const user = await getUser(routeKey);
           if (cancelled) return;
           setOriginalKey(user.key);
+          setUid(user.uid);
           setKey(user.key);
           setLoginName(user.loginName);
           setFirstName(user.firstName);
@@ -109,8 +124,18 @@ export function UserFormPage() {
     navigate("/users", { viewTransition: true });
   }, [navigate]);
 
+  const requestSaveAndClose = useCallback(() => {
+    closeAfterSaveRef.current = true;
+    const form = document.getElementById(FORM_ID);
+    if (form instanceof HTMLFormElement) {
+      form.requestSubmit();
+    }
+  }, []);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    const shouldClose = closeAfterSaveRef.current;
+    closeAfterSaveRef.current = false;
     setError(null);
     setSubmitting(true);
 
@@ -125,20 +150,45 @@ export function UserFormPage() {
         employeeKey: employeeKey.trim().length > 0 ? employeeKey.trim() : null,
       };
 
+      const previousKey = originalKey ?? routeKey ?? payload.key;
       const saved =
         mode === "create"
           ? await createUser({ ...payload, password })
-          : await updateUser(originalKey ?? routeKey!, {
+          : await updateUser(previousKey, {
               ...payload,
               password: password.trim() || undefined,
             });
 
-      if (currentUser && originalKey && currentUser.key === originalKey) {
-        updateStoredUser(saved);
+      if (
+        currentUser &&
+        (currentUser.key === previousKey || currentUser.key === saved.key)
+      ) {
+        const { uid: _uid, ...authUser } = saved;
+        updateStoredUser(authUser);
       }
 
-      setPanelTransitionDirection("back");
-      navigate("/users", { replace: true, viewTransition: true });
+      if (shouldClose) {
+        setPanelTransitionDirection("back");
+        navigate("/users", { replace: true, viewTransition: true });
+        return;
+      }
+
+      setOriginalKey(saved.key);
+      setUid(saved.uid);
+      setKey(saved.key);
+      setLoginName(saved.loginName);
+      setFirstName(saved.firstName);
+      setLastName(saved.lastName);
+      setEmail(saved.email);
+      setSecondarySiteKeys(saved.secondarySites.map((site) => site.key));
+      setEmployeeKey(saved.employee?.key ?? "");
+      setPassword("");
+
+      if (mode === "create" || previousKey !== saved.key) {
+        navigate(`/users/${encodeURIComponent(saved.key)}/edit`, {
+          replace: true,
+        });
+      }
     } catch (err) {
       setError(
         err instanceof UsersApiError
@@ -179,19 +229,13 @@ export function UserFormPage() {
     [employeeOptions, originalKey],
   );
 
-  const primaryLabel = currentUser
-    ? `${currentUser.primarySite.key} — ${currentUser.primarySite.name}`
-    : "—";
-
   const pageTitle =
     mode === "create" ? "Benutzer anlegen" : "Benutzer bearbeiten";
 
   return (
     <div className="panel-transition">
       <div className="@container flex h-16 w-full items-center gap-3 border-b border-outline-variant px-3">
-        <h1 className="w-52 shrink-0 truncate text-lg leading-6 font-semibold text-on-surface">
-          {pageTitle}
-        </h1>
+        <AppTitle title={pageTitle} />
 
         <div className="h-5 w-px shrink-0 bg-outline-variant" aria-hidden />
 
@@ -217,15 +261,12 @@ export function UserFormPage() {
         >
           {() => (
             <>
-              <button
-                type="submit"
-                form="user-form"
-                disabled={loading || submitting}
-                className="inline-flex h-9 items-center gap-1.5 rounded border border-primary bg-primary px-3 text-sm font-semibold text-on-primary transition-colors hover:border-primary-container hover:bg-primary-container disabled:pointer-events-none disabled:opacity-50"
-              >
-                <IconDeviceFloppy size={18} stroke={1.75} />
-                {submitting ? "Speichern…" : "Speichern"}
-              </button>
+              <SaveButtonGroup
+                formId={FORM_ID}
+                disabled={loading}
+                submitting={submitting}
+                onSaveAndClose={requestSaveAndClose}
+              />
 
               <button
                 type="button"
@@ -245,18 +286,15 @@ export function UserFormPage() {
         <p className="mt-8 px-3 text-sm text-on-surface-variant">Laden…</p>
       ) : (
         <form
-          id="user-form"
+          id={FORM_ID}
           className="mt-8 flex w-full flex-col gap-8 px-3"
           onSubmit={onSubmit}
         >
-          <section aria-labelledby="user-base-heading" className="flex flex-col gap-4">
-            <h2
-              id="user-base-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconId size={18} stroke={1.75} className="text-primary" />
-              Basis Informationen
-            </h2>
+          <FormSection
+            headingId="user-base-heading"
+            title="Basis Informationen"
+            icon={IconId}
+          >
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <Field
                 id="user-key"
@@ -337,64 +375,42 @@ export function UserFormPage() {
                 />
               </SearchableField>
             </div>
-          </section>
+          </FormSection>
 
-          <section
-            aria-labelledby="user-sites-heading"
-            className="flex flex-col gap-4"
+          <FormSection
+            headingId="user-sites-heading"
+            title="Mandanten"
+            icon={IconBuilding}
           >
-            <h2
-              id="user-sites-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconBuilding size={18} stroke={1.75} className="text-primary" />
-              Mandanten
-            </h2>
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              <div className="flex flex-col gap-5">
-                <SearchableField texts={["Hauptmandant", primaryLabel]}>
-                  <FloatingField
-                    id="user-primary-site"
-                    label="Hauptmandant"
-                    value={primaryLabel}
-                    readOnly
-                  />
-                </SearchableField>
-                <SearchableField
-                  texts={[
-                    "Nebenmandanten",
-                    ...secondarySiteKeys,
-                    ...siteOptions.flatMap((site) => [site.key, site.name]),
-                  ]}
-                >
-                  <MultiSelect
-                    id="user-secondary-sites"
-                    label="Nebenmandanten"
-                    values={secondarySiteKeys}
-                    onChange={setSecondarySiteKeys}
-                    options={siteMultiSelectOptions}
-                    emptyText={
-                      siteOptions.length === 0
-                        ? "Keine weiteren Mandanten verfügbar."
-                        : "Keine Treffer"
-                    }
-                  />
-                </SearchableField>
-              </div>
+              <SearchableField
+                texts={[
+                  "Nebenmandanten",
+                  ...secondarySiteKeys,
+                  ...siteOptions.flatMap((site) => [site.key, site.name]),
+                ]}
+              >
+                <MultiSelect
+                  id="user-secondary-sites"
+                  label="Nebenmandanten"
+                  values={secondarySiteKeys}
+                  onChange={setSecondarySiteKeys}
+                  options={siteMultiSelectOptions}
+                  emptyText={
+                    siteOptions.length === 0
+                      ? "Keine weiteren Mandanten verfügbar."
+                      : "Keine Treffer"
+                  }
+                />
+              </SearchableField>
             </div>
-          </section>
+          </FormSection>
 
-          <section
-            aria-labelledby="user-references-heading"
-            className="flex flex-col gap-4"
+          <FormSection
+            headingId="user-references-heading"
+            title="Referenzen"
+            icon={IconLink}
           >
-            <h2
-              id="user-references-heading"
-              className="flex items-center gap-2 border-b border-outline-variant pb-2 text-sm font-semibold tracking-wide text-on-surface uppercase"
-            >
-              <IconLink size={18} stroke={1.75} className="text-primary" />
-              Referenzen
-            </h2>
             <div className="grid w-full grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               <SearchableField
                 texts={[
@@ -416,7 +432,13 @@ export function UserFormPage() {
                 />
               </SearchableField>
             </div>
-          </section>
+          </FormSection>
+
+          <MiscFormSection
+            headingId="user-misc-heading"
+            uid={uid}
+            site={currentUser?.primarySite ?? null}
+          />
         </form>
       )}
     </div>
